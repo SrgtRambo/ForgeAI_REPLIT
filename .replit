@@ -30,3 +30,9 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://aibzkrogksvaxzcqnoyk.supabase.co"
+VITE_SUPABASE_URL = "https://aibzkrogksvaxzcqnoyk.supabase.co"
