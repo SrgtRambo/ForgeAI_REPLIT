@@ -791,34 +791,33 @@
   $("showPreview").addEventListener("click", openPreview);
   $("refreshPreview").addEventListener("click", () => refreshPreview(currentFiles));
   const aiSettings = window.ForgeAIProvider.settings();
-  $("ollamaEnabled").checked = aiSettings.enabled;
-  $("ollamaModel").value = aiSettings.model;
+  $("forgeAiEnabled").checked = aiSettings.enabled;
   function updateGeneratorMode() {
-    const enabled = $("ollamaEnabled").checked;
+    const enabled = $("forgeAiEnabled").checked;
     $("generateProject").textContent = enabled ? "Generate custom app with Forge AI" : "Generate offline template app";
     $("generateProject").title = enabled ? "Generate application source files with Forge AI." : "Use Forge's deterministic offline template generator.";
   }
   updateGeneratorMode();
   function saveAISettings() {
-    return window.ForgeAIProvider.configure({ enabled: $("ollamaEnabled").checked, model: $("ollamaModel").value });
+    return window.ForgeAIProvider.configure({ enabled: $("forgeAiEnabled").checked });
   }
-  ["ollamaEnabled", "ollamaModel"].forEach((id) => $(id).addEventListener("change", () => {
-    try { saveAISettings(); updateGeneratorMode(); updateAIFixControls(); showNotice("ollamaNotice", $("ollamaEnabled").checked ? "Forge AI is on for discovery, architecture, source generation, and fix proposals." : "Forge AI is off. Forge will use its clearly labeled offline starter templates.", false); }
-    catch (error) { showNotice("ollamaNotice", error.message || String(error), true); }
+  ["forgeAiEnabled"].forEach((id) => $(id).addEventListener("change", () => {
+    try { saveAISettings(); updateGeneratorMode(); updateAIFixControls(); showNotice("forgeAiNotice", $("forgeAiEnabled").checked ? "Forge AI is on for discovery, architecture, source generation, and fix proposals." : "Forge AI is off. Forge will use its clearly labeled offline starter templates.", false); }
+    catch (error) { showNotice("forgeAiNotice", error.message || String(error), true); }
   }));
-  $("checkOllama").addEventListener("click", async () => {
-    const button = $("checkOllama"); button.disabled = true; button.textContent = "Checking Forge AI…";
+  $("checkForgeAi").addEventListener("click", async () => {
+    const button = $("checkForgeAi"); button.disabled = true; button.textContent = "Checking OpenRouter…";
     try {
       const status = await window.ForgeAIProvider.checkConnection();
       $("modelStatus").textContent = "CONNECTED";
       $("modelStatus").classList.toggle("error", false);
-      showNotice("ollamaNotice", "Connected to Forge AI. You have used " + status.usedToday + " of " + status.perDay + " AI requests in the last 24 hours (limit " + status.perMinute + " per minute).", false);
+      showNotice("forgeAiNotice", "Connected to OpenRouter (" + status.model + "). You have used " + status.usedToday + " of " + status.perDay + " AI requests in the last 24 hours (limit " + status.perMinute + " per minute).", false);
     } catch (error) {
       $("modelStatus").textContent = "NOT CONNECTED";
       $("modelStatus").classList.add("error");
-      showNotice("ollamaNotice", "Could not reach Forge AI: " + (error.message || String(error)), true);
+      showNotice("forgeAiNotice", "Could not reach OpenRouter: " + (error.message || String(error)), true);
     }
-    finally { button.disabled = false; button.textContent = "Check AI connection"; }
+    finally { button.disabled = false; button.textContent = "Check OpenRouter connection"; }
   });
   $("exportProjects").addEventListener("click", () => {
     try { const blob = new Blob([JSON.stringify(projects, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "forge-ai-projects.json"; link.click(); URL.revokeObjectURL(url); showNotice("settingsNotice", "Exported " + projects.length + " projects.", false); }

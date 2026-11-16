@@ -2,18 +2,24 @@
 // Rule-based architecture and offline templates remain available when AI is turned off.
 (function () {
   "use strict";
-  const STORAGE_KEY = "forge-ai-provider-settings-v1";
-  const defaults = { enabled: true, endpoint: "forge-cloud", model: "forge-ai" };
+  const STORAGE_KEY = "forge-ai-provider-settings-v2";
+  const LEGACY_STORAGE_KEY = "forge-ai-provider-settings-v1";
+  const defaults = { enabled: true };
   function settings() {
-    try { return { ...defaults, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") }; }
-    catch (_) { return { ...defaults }; }
+    try {
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (current && typeof current.enabled === "boolean") return { enabled: current.enabled };
+      const previous = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || "null");
+      if (previous && typeof previous.enabled === "boolean") {
+        const migrated = { enabled: previous.enabled };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+        return migrated;
+      }
+    } catch (_) {}
+    return { ...defaults };
   }
-  function assertLocalEndpoint() { /* Requests now go to Forge AI's authenticated cloud route. */ }
   function configure(patch) {
-    const next = { ...settings(), ...(patch || {}) };
-    next.endpoint = defaults.endpoint;
-    next.model = defaults.model;
-    assertLocalEndpoint(next.endpoint);
+    const next = { enabled: typeof (patch || {}).enabled === "boolean" ? patch.enabled : settings().enabled };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     return next;
   }
@@ -33,6 +39,9 @@
       throw Object.assign(new Error((payload && payload.error) || "Forge AI returned HTTP " + status + "."), { status });
     }
     return payload;
+  }
+  function responseContent(payload) {
+    return payload && typeof payload.content === "string" ? payload.content : null;
   }
   const schema = {
     type: "object", required: ["overview", "features", "modules", "screens", "navigation", "workflows", "entities", "validation", "visualDirection", "questions"],
@@ -129,23 +138,22 @@
   }
   async function requestArchitecture(requirements, timeoutMs) {
     const config = settings();
-    assertLocalEndpoint(config.endpoint);
     if (!config.enabled) return null;
         const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs || 300000);
     try {
       let outputError = null;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const payload = await postChat({ model: config.model, stream: false, format: schema, maxOutputTokens: attempt === 0 ? 2048 : 4096, options: { num_ctx: 8192, temperature: 0.2 }, messages: [
+        const payload = await postChat({ format: schema, maxOutputTokens: attempt === 0 ? 2048 : 4096, messages: [
             { role: "system", content: "You are a careful software product architect and product designer. Return only the requested JSON architecture. Design a genuinely business-specific first version: name concrete screens, domain entities, fields, metrics, and end-to-end workflows derived from the requirements. Keep it small enough to implement reliably as a local browser app; use at most six screens and combine closely related tasks. Define a distinctive visual direction for this particular business and workflow, including a deliberate style, 4–6 concrete color values, typography using available system fonts, composition, and one signature visual detail. Avoid the same generic dashboard, sidebar, card grid, or work queue across businesses. Do not default to a generic work queue, CRM, inventory app, or generic CRUD dashboard unless that is actually the requested product. Do not invent numeric business limits, compatibility rules, temperatures, authentication, privacy guarantees, or notifications; mark unknown domain values as configurable or ask about them. Do not imply browser localStorage provides accounts or access control. Keep scope runnable with browser HTML/CSS/JavaScript and localStorage. Do not claim integrations or capabilities not requested. Identify assumptions as questions." +
               (attempt === 1 ? " The previous response was incomplete or invalid (" + outputError.message + "). Return a complete response that satisfies every required field and limit; do not truncate the JSON." : "") },
             { role: "user", content: "Create a first-version architecture for this business. Requirements JSON:\n" + JSON.stringify(requirements) }
           ] }, controller.signal);
-        if (payload && payload.done_reason === "length") {
+        if (payload && payload.finishReason === "length") {
           outputError = new Error("Forge AI reached the architecture output limit.");
           continue;
         }
-        let content = payload && payload.message && payload.message.content;
+        let content = responseContent(payload);
         if (typeof content === "string") {
           try { content = JSON.parse(content); }
           catch (_) {
@@ -167,16 +175,15 @@
   }
   async function requestFollowUp(requirements, timeoutMs) {
     const config = settings();
-    assertLocalEndpoint(config.endpoint);
     if (!config.enabled) return null;
         const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs || 180000);
     try {
-      const payload = await postChat({ model: config.model, stream: false, format: followUpSchema, maxOutputTokens: 768, options: { num_ctx: 8192, temperature: 0.2 }, messages: [
+      const payload = await postChat({ format: followUpSchema, maxOutputTokens: 768, messages: [
           { role: "system", content: "You are conducting business software discovery. Review the answers and ask up to five short, high-value follow-up questions only when their answers would materially change the application workflow, data, user access, or constraints. Do not repeat answered questions. Return an empty questions array if the information is sufficient. Return only the requested JSON." },
           { role: "user", content: "Identify the most important missing details before designing this application. Requirements JSON:\n" + JSON.stringify(requirements) }
         ] }, controller.signal);
-      let content = payload && payload.message && payload.message.content;
+      let content = responseContent(payload);
       if (typeof content === "string") content = JSON.parse(content);
       return validateFollowUp(content);
     } catch (error) {
@@ -195,7 +202,6 @@
   }
   async function requestProjectFiles(requirements, architecture, timeoutMs, onProgress, existingFiles) {
     const config = settings();
-    assertLocalEndpoint(config.endpoint);
     if (!config.enabled) throw new Error("Turn on Forge AI in Settings before requesting AI-generated source.");
         const files = { ...makeProjectSupportFiles(requirements, architecture) };
     for (const [path, content] of Object.entries(existingFiles || {})) {
@@ -331,19 +337,18 @@
           const timer = setTimeout(() => controller.abort(), attemptRemaining);
           try {
             const payload = await postChat({
-                model: config.model, stream: false, format: fileContentSchema, maxOutputTokens: outputLimit,
-                options: { num_ctx: 8192, temperature: 0.2 },
+                format: fileContentSchema, maxOutputTokens: outputLimit,
                 messages: [
                   { role: "system", content: "You are building a genuinely custom, local-first business application, not adapting a generic template. " + stage.instructions + (attempt === 1 && stage.retryInstructions ? " " + stage.retryInstructions + (stageValidationFailure ? " The exact validation failure was: " + stageValidationFailure : "") : "") + " Return only JSON with a non-empty content string containing the complete source for " + stage.path + ". No markdown fences or explanation." },
                   { role: "user", content: userPrompt }
                 ]
               }, controller.signal);
-            if (payload && payload.done_reason === "length") {
+            if (payload && payload.finishReason === "length") {
               const error = new Error("The model reached the output limit for " + stage.path + ".");
               error.retryable = attempt === 0;
               throw error;
             }
-            let content = payload && payload.message && payload.message.content;
+            let content = responseContent(payload);
             if (typeof content === "string") {
               try { content = JSON.parse(content); }
               catch (_) {
@@ -374,7 +379,6 @@
   }
   async function requestFixProposal(path, currentContent, requirements, architecture, failures, timeoutMs, relatedFiles) {
     const config = settings();
-    assertLocalEndpoint(config.endpoint);
     if (!config.enabled) throw new Error("Turn on Forge AI in Settings before requesting AI fix proposals.");
         if (!sourcePaths.includes(path)) throw new Error("Choose a supported application source file to fix.");
     if (typeof currentContent !== "string" || currentContent.length > 12000) throw new Error("This file is too large to include in a single fix request. Review it manually or select a smaller source file.");
@@ -395,11 +399,11 @@
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs || 180000);
     try {
-      const payload = await postChat({ model: config.model, stream: false, format: fileProposalSchema, maxOutputTokens: 4096, options: { num_ctx: 8192, temperature: 0.2 }, messages: [
+      const payload = await postChat({ format: fileProposalSchema, maxOutputTokens: 4096, messages: [
           { role: "system", content: "Propose a complete replacement for only the requested application source file that addresses the reported failed checks while preserving valid existing behavior. Related files are context only: preserve their actual selectors and structure, do not invent elements or claim another file was changed. Do not edit Forge itself. Keep the app local: no network requests, external dependencies, eval, or dynamic code execution. Return only JSON with a non-empty content string. This is a proposal for human review, not an instruction to apply it." },
           { role: "user", content: "Review the selected source, related project source, requirements, and each actual failed check. Return a proposed full replacement for the named file only:\n" + userContent }
         ] }, controller.signal);
-      let content = payload && payload.message && payload.message.content;
+      let content = responseContent(payload);
       if (typeof content === "string") content = JSON.parse(content);
       if (!content || typeof content.content !== "string" || !content.content.trim() || content.content.length > 300000) throw new Error("The model returned an empty or oversized fix proposal.");
       if (path === "js/app.js" && Object.keys(relatedSource).length) {
@@ -428,6 +432,7 @@
       const response = await fetch("/api/forge/chat", { method: "GET", signal: controller.signal, headers: { Authorization: "Bearer " + token } });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data || data.error) throw new Error((data && data.error) || "Forge AI returned HTTP " + response.status + ".");
+      if (!data.openrouterConfigured) throw new Error("OpenRouter is not configured. Add OPENROUTER_API_KEY in Replit Secrets.");
       return data;
     } catch (error) {
       if (error.name === "AbortError") throw new Error("Forge AI did not respond within ten seconds.");

@@ -130,6 +130,10 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    if (!import.meta.env["VITE_SUPABASE_URL"] || !import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"]) {
+      setAuthSession(null);
+      return;
+    }
     void supabase.auth.getSession().then(({ data }) => setAuthSession(data.session));
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       setAuthSession(session);

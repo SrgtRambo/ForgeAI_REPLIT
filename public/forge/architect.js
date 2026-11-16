@@ -102,10 +102,10 @@
       }
       architecture.tests = ["Implement and test each approved business workflow", "Validate required and business-specific fields", "Verify responsive layout and local persistence"];
       architecture.questions = Array.isArray(ai.questions) && ai.questions.length <= 30 ? ai.questions.map((item) => String(item).slice(0, 500)) : architecture.questions;
-      architecture.provider = "ollama";
+      architecture.provider = "openrouter";
     } else architecture.provider = "local-rules";
     const lines = [
-      "FORGE AI — SOFTWARE ARCHITECTURE", ai ? "LOCAL AI DRAFT · REVIEW BEFORE GENERATION" : "RULE-BASED LOCAL DRAFT · REVIEW BEFORE GENERATION", "",
+      "FORGE AI — SOFTWARE ARCHITECTURE", ai ? "OPENROUTER AI DRAFT · REVIEW BEFORE GENERATION" : "RULE-BASED LOCAL DRAFT · REVIEW BEFORE GENERATION", "",
       "APPLICATION OVERVIEW", architecture.overview, `Industry: ${industry}`, `Primary users: ${users}`, `Success measure: ${success}`, "",
       "REQUIREMENTS", `Problem: ${problem}`, `Desired outcome: ${goal}`, `Current workflow: ${workflow}`, `Current tools: ${d.tools || "Not provided"}`, `Constraints: ${constraints}`, "",
       "TECHNOLOGY", ...architecture.technology.map((item) => "• " + item), "",

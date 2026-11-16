@@ -116,7 +116,14 @@ async function writeFile({ chat, model, prompt, type, tier, plan, file }) {
   let output = '';
   for (let round = 0; round <= ENGINE_LIMITS.maxContinuations; round++) {
     const { content, finishReason } = await chat({ model, messages, maxTokens: maxFileTokens });
-    const piece = round === 0 ? stripCodeFence(content) : content.replace(/^```[\w.+-]*\r?\n/, '');
+    const piece =
+      round === 0 && finishReason === 'length'
+        ? content.replace(/^```[\w.+-]*[ \t]*\r?\n/, '')
+        : round === 0
+          ? stripCodeFence(content)
+          : content
+              .replace(/^```[\w.+-]*[ \t]*\r?\n/, '')
+              .replace(/\r?\n?```[ \t]*$/, (fence) => (fence.includes('\n') ? '\n' : ''));
     output += piece;
     if (finishReason !== 'length') {
       output = stripCodeFence(output);

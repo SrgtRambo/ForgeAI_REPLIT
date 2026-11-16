@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { createForgeCloud, loadForgeProjects, type SyncState } from "@/lib/forge-cloud";
 import { profileQueryOptions } from "@/lib/profile";
 
-const FORGE_VERSION = "2";
+const FORGE_VERSION = "3";
 const FORGE_SCRIPTS = ["architect.js", "ai-provider.js", "generator.js", "testing.js", "sample-projects.js", "app.js"];
 
 export const Route = createFileRoute("/_authenticated/studio")({
