@@ -22,12 +22,12 @@ export function loadConfig() {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
-    supabaseUrl: read('SUPABASE_URL'),
-    supabaseServiceKey: read('SUPABASE_SERVICE_ROLE_KEY'),
+    databaseUrl: read('DATABASE_URL'),
+    clerkSecretKey: read('CLERK_SECRET_KEY'),
+    clerkPublishableKey: read('CLERK_PUBLISHABLE_KEY'),
     openrouterKey: read('OPENROUTER_API_KEY'),
     stripeSecretKey: read('STRIPE_SECRET_KEY'),
     stripeWebhookSecret: read('STRIPE_WEBHOOK_SECRET'),
-    storageBucket: read('STORAGE_BUCKET', 'projects'),
     jobConcurrency: Math.max(1, Number(read('JOB_CONCURRENCY', '2')) || 2),
     maxQueuedJobs: readInt('MAX_QUEUED_JOBS', 10, 1, 100),
     allowFreeGeneration: read('ALLOW_FREE_GENERATION', 'false') === 'true',
@@ -46,8 +46,9 @@ export function loadConfig() {
     },
   };
   const missing = [
-    ['SUPABASE_URL', config.supabaseUrl],
-    ['SUPABASE_SERVICE_ROLE_KEY', config.supabaseServiceKey],
+    ['DATABASE_URL', config.databaseUrl],
+    ['CLERK_SECRET_KEY', config.clerkSecretKey],
+    ['CLERK_PUBLISHABLE_KEY', config.clerkPublishableKey],
     ['OPENROUTER_API_KEY', config.openrouterKey],
   ]
     .filter(([, v]) => !v)

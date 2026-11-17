@@ -407,15 +407,15 @@
     const description = $("siteDescription").value.trim();
     const brandColors = $("siteBrandColors").value.split(",").map((color) => color.trim()).filter(Boolean);
     try {
-      const token = await window.ForgeCloud?.getAccessToken();
-      if (!token) throw new Error("Your sign-in session expired. Sign in again and retry.");
+      if (!window.ForgeCloud) throw new Error("Sign in to Forge AI and retry.");
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 240_000);
       let response;
       try {
         response = await fetch("/api/site/generate", {
           method: "POST",
-          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             businessName: $("siteBusinessName").value.trim(),
             industry: $("siteIndustry").value.trim(),

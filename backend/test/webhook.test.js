@@ -7,17 +7,22 @@ import { createApp } from '../src/server.js';
 const SECRET = 'whsec_test_secret';
 const stripe = new Stripe('sk_test_dummy');
 
-// Minimal stand-in for the Supabase query builder: every chain resolves to `result`.
 function fakeDb(result) {
-  const updates = [];
-  const chain = {
-    update(values) { updates.push(values); return chain; },
-    eq() { return chain; },
-    select() { return chain; },
-    maybeSingle: async () => ({ data: result(), error: null }),
-    then: (resolve) => resolve({ data: null, error: null }),
+  return {
+    db: {
+      markPaidAndQueue: async () => result(),
+      cancelPendingPurchase: async () => {},
+    },
   };
-  return { db: { from: () => chain, auth: { getUser: async () => ({ data: null, error: new Error('no') }) } }, updates };
+}
+
+const passThroughClerk = (_req, _res, next) => next();
+function createTestApp(options) {
+  return createApp({
+    ...options,
+    clerkAuthMiddleware: passThroughClerk,
+    getAuthFromRequest: () => null,
+  });
 }
 
 async function withServer(app, fn) {
@@ -43,7 +48,7 @@ const config = { corsOrigins: [], stripeWebhookSecret: SECRET, allowFreeGenerati
 test('webhook rejects requests without a valid Stripe signature', async () => {
   const enqueued = [];
   const { db } = fakeDb(() => ({ id: 'p1' }));
-  const app = createApp({ config, db, stripe, jobs: { enqueue: (id) => enqueued.push(id), size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue: (id) => enqueued.push(id), size: 0 } });
   await withServer(app, async (base) => {
     const res = await fetch(`${base}/api/stripe/webhook`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': 't=1,v1=bad' }, body: '{}',
@@ -58,7 +63,7 @@ test('a paid checkout queues the job once and replies immediately', async () => 
   let firstDelivery = true;
   // The conditional update matches only on the first delivery, like the real database.
   const { db } = fakeDb(() => (firstDelivery ? ((firstDelivery = false), { id: 'p1' }) : null));
-  const app = createApp({ config, db, stripe, jobs: { enqueue: (id) => enqueued.push(id), size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue: (id) => enqueued.push(id), size: 0 } });
   await withServer(app, async (base) => {
     for (let i = 0; i < 2; i++) {
       const { payload, signature } = signedEvent('checkout.session.completed');
@@ -74,7 +79,7 @@ test('a paid checkout queues the job once and replies immediately', async () => 
 test('an unpaid checkout does not queue work', async () => {
   const enqueued = [];
   const { db } = fakeDb(() => ({ id: 'p1' }));
-  const app = createApp({ config, db, stripe, jobs: { enqueue: (id) => enqueued.push(id), size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue: (id) => enqueued.push(id), size: 0 } });
   await withServer(app, async (base) => {
     const { payload, signature } = signedEvent('checkout.session.completed', 'unpaid');
     const res = await fetch(`${base}/api/stripe/webhook`, {
@@ -87,7 +92,7 @@ test('an unpaid checkout does not queue work', async () => {
 
 test('purchase routes require sign-in', async () => {
   const { db } = fakeDb(() => null);
-  const app = createApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
   await withServer(app, async (base) => {
     assert.equal((await fetch(`${base}/api/purchases`)).status, 401);
     assert.equal((await fetch(`${base}/api/purchases/p1/download`)).status, 401);

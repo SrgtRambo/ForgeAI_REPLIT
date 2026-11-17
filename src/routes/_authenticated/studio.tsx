@@ -2,8 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useClerk, useUser } from "@clerk/react";
 
-import { supabase } from "@/integrations/supabase/client";
 import { createForgeCloud, loadForgeProjects, type SyncState } from "@/lib/forge-cloud";
 import { profileQueryOptions } from "@/lib/profile";
 import { formatStudioLoadError } from "@/lib/studio-load-error";
@@ -40,6 +40,8 @@ function loadScript(src: string) {
 
 function StudioPage() {
   const { user } = Route.useRouteContext();
+  const { user: clerkUser } = useUser();
+  const { signOut: clerkSignOut } = useClerk();
   const profile = Route.useLoaderData();
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -68,7 +70,7 @@ function StudioPage() {
       ]);
       if (cancelled || !hostRef.current) return;
       hostRef.current.innerHTML = markup;
-      window.ForgeCloud = createForgeCloud(user.id, projects, (state, message) => setSync({ state, message }));
+      window.ForgeCloud = createForgeCloud(projects, (state, message) => setSync({ state, message }));
       for (const file of FORGE_SCRIPTS) {
         if (cancelled) return;
         added.push(await loadScript(`/forge/${file}?v=${FORGE_VERSION}`));
@@ -105,12 +107,12 @@ function StudioPage() {
     await window.ForgeCloud?.flush();
     await queryClient.cancelQueries();
     queryClient.clear();
-    await supabase.auth.signOut();
     window.ForgeCloud = undefined;
-    await navigate({ to: "/auth", replace: true });
+    await clerkSignOut({ redirectUrl: "/" });
   }
 
-  const name = profile.display_name || user.email || "Your account";
+  const email = clerkUser?.primaryEmailAddress?.emailAddress ?? "";
+  const name = clerkUser?.fullName || email || profile.companyName || "Your account";
   const syncLabel = sync.state === "saving" ? "SAVING…" : sync.state === "error" ? "NOT SAVED — RETRYING ON NEXT CHANGE" : "ALL CHANGES SAVED";
 
   return (
@@ -136,7 +138,7 @@ function StudioPage() {
             <span className={`sync-state${sync.state === "error" ? " error" : ""}`} title={sync.message} role="status">
               {syncLabel}
             </span>
-            <span className="account-name" title={user.email ?? undefined}>
+            <span className="account-name" title={email || undefined}>
               {name}
             </span>
             <a className="btn" href="/account" onClick={(e) => { e.preventDefault(); void navigate({ to: "/account" }); }}>

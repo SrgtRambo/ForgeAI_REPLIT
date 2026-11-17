@@ -3,47 +3,39 @@ import assert from 'node:assert/strict';
 
 import { createApp } from '../src/server.js';
 
-function fakeDb(rows = {}, updates = []) {
-  const chain = {
-    insert(values) {
-      const id = `p_${Math.random().toString(36).slice(2, 8)}`;
-      rows[id] = { ...values, id, status: 'pending', progress: 0, created_at: new Date().toISOString() };
-      return chain;
-    },
-    select() { return chain; },
-    eq() { return chain; },
-    order() { return chain; },
-    limit() { return chain; },
-    maybeSingle: async () => {
-      const key = Object.keys(rows)[0];
-      return { data: rows[key] ?? null, error: null };
-    },
-    single: async () => {
-      const key = Object.keys(rows)[0];
-      return { data: rows[key] ?? null, error: rows[key] ? null : new Error('not found') };
-    },
-    update(values) {
-      Object.assign(updates, values);
-      return chain;
-    },
-    then: (resolve) => resolve({ data: null, error: null }),
-  };
+function fakeDb(rows = {}) {
+  let nextId = 0;
   return {
     db: {
-      from: () => chain,
-      auth: { getUser: async () => ({ data: { user: { id: 'u1', email: 'a@b.com' } }, error: null }) },
-      storage: {
-        from: () => ({
-          createSignedUrl: async () => ({ data: { signedUrl: 'https://example.com/signed' }, error: null }),
-          upload: async () => ({ data: null, error: null }),
-        }),
-        listBuckets: async () => ({ data: [], error: null }),
-        createBucket: async () => ({ data: null, error: null }),
+      async createPurchase(values) {
+        const id = `p${++nextId}`;
+        rows[id] = { ...values, id, status: values.status, progress: 0, created_at: new Date().toISOString() };
+        return { id };
       },
+      async attachStripeSession(id, sessionId) { rows[id].stripe_session_id = sessionId; },
+      async markPaidAndQueue(id) {
+        if (rows[id]?.status !== 'pending') return null;
+        rows[id].status = 'queued';
+        return { id };
+      },
+      async cancelPendingPurchase(id) { if (rows[id]?.status === 'pending') rows[id].status = 'cancelled'; },
+      async listPurchasesForUser(userId) { return Object.values(rows).filter((row) => row.userId === userId); },
+      async getPurchaseForUser(id, userId) { return rows[id]?.userId === userId ? rows[id] : null; },
+      async getPurchaseDownload(id, userId) { return rows[id]?.userId === userId ? rows[id] : null; },
     },
     rows,
-    updates,
   };
+}
+
+const passThroughClerk = (_req, _res, next) => next();
+function createTestApp(options) {
+  return createApp({
+    ...options,
+    clerkAuthMiddleware: passThroughClerk,
+    getAuthFromRequest: (req) => req.headers.cookie?.includes('forge-test=valid')
+      ? { userId: 'u1', sessionClaims: { email: 'a@b.com' } }
+      : null,
+  });
 }
 
 async function withServer(app, fn) {
@@ -63,15 +55,13 @@ const config = {
   stripeWebhookSecret: 'whsec_test',
   allowFreeGeneration: true,
   frontendUrl: 'http://localhost:8080',
-  supabaseUrl: 'http://x',
-  supabaseServiceKey: 'x',
   openrouterKey: 'x',
-  storageBucket: 'projects',
+  siteLimits: { perUserMinute: 1, perUserDay: 3, perIpDay: 5, globalPerDay: 10 },
 };
 
 test('GET /api/catalog lists types and tiers without auth', async () => {
   const { db } = fakeDb();
-  const app = createApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
   await withServer(app, async (base) => {
     const res = await fetch(`${base}/api/catalog`);
     assert.equal(res.status, 200);
@@ -83,7 +73,7 @@ test('GET /api/catalog lists types and tiers without auth', async () => {
 
 test('POST /api/checkout requires sign-in', async () => {
   const { db } = fakeDb();
-  const app = createApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
   await withServer(app, async (base) => {
     assert.equal((await fetch(`${base}/api/checkout`, { method: 'POST', body: JSON.stringify({ prompt: 'x'.repeat(20), type: 'website', tier: 'standard' }), headers: { 'content-type': 'application/json' } })).status, 401);
   });
@@ -91,11 +81,11 @@ test('POST /api/checkout requires sign-in', async () => {
 
 test('POST /api/checkout rejects a short prompt', async () => {
   const { db } = fakeDb();
-  const app = createApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
   await withServer(app, async (base) => {
     const res = await fetch(`${base}/api/checkout`, {
       method: 'POST',
-      headers: { Authorization: 'Bearer tok', 'content-type': 'application/json' },
+      headers: { Cookie: 'forge-test=valid', 'content-type': 'application/json' },
       body: JSON.stringify({ prompt: 'hi', type: 'website', tier: 'standard' }),
     });
     assert.equal(res.status, 400);
@@ -104,7 +94,7 @@ test('POST /api/checkout rejects a short prompt', async () => {
 
 test('POST /api/site/generate requires an authenticated user', async () => {
   const { db } = fakeDb();
-  const app = createApp({
+  const app = createTestApp({
     config: { ...config, siteGenerationEnabled: true },
     db,
     stripe,
@@ -125,7 +115,7 @@ test('POST /api/site/generate validates input, calls the builder, and enforces l
     description: 'A clear website for local plumbing repairs and fixture installation.',
   };
   const received = [];
-  const app = createApp({
+  const app = createTestApp({
     config: {
       ...config,
       siteGenerationEnabled: true,
@@ -142,7 +132,7 @@ test('POST /api/site/generate validates input, calls the builder, and enforces l
   await withServer(app, async (base) => {
     const options = {
       method: 'POST',
-      headers: { Authorization: 'Bearer tok', 'content-type': 'application/json' },
+      headers: { Cookie: 'forge-test=valid', 'content-type': 'application/json' },
       body: JSON.stringify(input),
     };
     const first = await fetch(`${base}/api/site/generate`, options);
@@ -160,11 +150,11 @@ test('POST /api/site/generate validates input, calls the builder, and enforces l
 test('POST /api/generate-free queues a free job', async () => {
   const enqueued = [];
   const { db } = fakeDb();
-  const app = createApp({ config, db, stripe, jobs: { enqueue: (id) => enqueued.push(id), size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue: (id) => enqueued.push(id), size: 0 } });
   await withServer(app, async (base) => {
     const res = await fetch(`${base}/api/generate-free`, {
       method: 'POST',
-      headers: { Authorization: 'Bearer tok', 'content-type': 'application/json' },
+      headers: { Cookie: 'forge-test=valid', 'content-type': 'application/json' },
       body: JSON.stringify({ prompt: 'A plumbing site'.repeat(2), type: 'website', tier: 'standard' }),
     });
     assert.equal(res.status, 202);
@@ -176,29 +166,30 @@ test('POST /api/generate-free queues a free job', async () => {
 
 test('GET /api/purchases requires sign-in', async () => {
   const { db } = fakeDb();
-  const app = createApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
   await withServer(app, async (base) => {
     assert.equal((await fetch(`${base}/api/purchases`)).status, 401);
   });
 });
 
 test('GET /api/purchases/:id/download returns 409 when not ready', async () => {
-  const { db } = fakeDb({ p1: { status: 'processing', storage_path: null } });
-  const app = createApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
+  const { db } = fakeDb({ p1: { status: 'processing', userId: 'u1', archive: null } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
   await withServer(app, async (base) => {
-    const res = await fetch(`${base}/api/purchases/p1/download`, { headers: { Authorization: 'Bearer tok' } });
+    const res = await fetch(`${base}/api/purchases/p1/download`, { headers: { Cookie: 'forge-test=valid' } });
     assert.equal(res.status, 409);
   });
 });
 
-test('GET /api/purchases/:id/download returns a signed URL when ready', async () => {
-  const { db } = fakeDb({ p1: { status: 'ready', storage_path: 'u1/p1.zip' } });
-  const app = createApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
+test('GET /api/purchases/:id/download streams the private archive when ready', async () => {
+  const archive = Buffer.from('zip-data');
+  const { db } = fakeDb({ p1: { status: 'ready', userId: 'u1', project_name: 'Site', archive } });
+  const app = createTestApp({ config, db, stripe, jobs: { enqueue() {}, size: 0 } });
   await withServer(app, async (base) => {
-    const res = await fetch(`${base}/api/purchases/p1/download`, { headers: { Authorization: 'Bearer tok' } });
+    const res = await fetch(`${base}/api/purchases/p1/download`, { headers: { Cookie: 'forge-test=valid' } });
     assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.ok(body.url);
-    assert.equal(body.expiresInSeconds, 3600);
+    assert.equal(res.headers.get('content-type'), 'application/zip');
+    assert.equal(res.headers.get('content-disposition'), 'attachment; filename="Site.zip"');
+    assert.deepEqual(Buffer.from(await res.arrayBuffer()), archive);
   });
 });

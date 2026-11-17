@@ -8,14 +8,18 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { useClerk } from "@clerk/react";
+import { ClerkProvider } from "@clerk/tanstack-react-start";
+import { publishableKeyFromHost } from "@clerk/react/internal";
 
 import { Toaster } from "@/components/ui/sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { setAuthSession } from "@/lib/auth-store";
+import { clerkAppearance } from "@/components/auth/clerk-appearance";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
 function NotFoundComponent() {
   return (
@@ -42,9 +46,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -127,28 +128,48 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!import.meta.env["VITE_SUPABASE_URL"] || !import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"]) {
-      setAuthSession(null);
-      return;
-    }
-    void supabase.auth.getSession().then(({ data }) => setAuthSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      setAuthSession(session);
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      void router.invalidate();
-      if (event !== "SIGNED_OUT") void queryClient.invalidateQueries();
-    });
-    return () => data.subscription.unsubscribe();
-  }, [router, queryClient]);
+  const publishableKey =
+    typeof window === "undefined"
+      ? undefined
+      : publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-      <Toaster position="top-center" />
-    </QueryClientProvider>
+    <ClerkProvider
+      publishableKey={publishableKey}
+      proxyUrl={clerkProxyUrl}
+      appearance={clerkAppearance}
+      signInUrl={`${basePath}/sign-in`}
+      signUpUrl={`${basePath}/sign-up`}
+      localization={{
+        signIn: { start: { title: "Welcome back", subtitle: "Sign in to access your Forge AI projects." } },
+        signUp: { start: { title: "Create your Forge AI account", subtitle: "Start building custom software for your business." } },
+      }}
+    >
+      <QueryClientProvider client={queryClient}>
+        <ClerkQueryClientCacheInvalidator />
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <Toaster position="top-center" />
+      </QueryClientProvider>
+    </ClerkProvider>
   );
+}
+
+function ClerkQueryClientCacheInvalidator() {
+  const { addListener } = useClerk();
+  const queryClient = Route.useRouteContext().queryClient;
+  const previousUserId = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const unsubscribe = addListener(({ user }) => {
+      const userId = user?.id ?? null;
+      if (previousUserId.current !== undefined && previousUserId.current !== userId) {
+        queryClient.clear();
+      }
+      previousUserId.current = userId;
+    });
+    return unsubscribe;
+  }, [addListener, queryClient]);
+
+  return null;
 }

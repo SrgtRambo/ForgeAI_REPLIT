@@ -2,10 +2,12 @@
 // zips and stores the project -> the signed-in customer downloads it.
 import express from 'express';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { clerkMiddleware, getAuth } from '@clerk/express';
+import { publishableKeyFromHost } from '@clerk/shared/keys';
 import { pathToFileURL } from 'node:url';
 
 import { loadConfig } from './config.js';
+import { createDatabase } from './database.js';
 import { createJobRunner } from './jobs.js';
 import { createOpenRouterChat } from './openrouter.js';
 import { OrderError, validateOrder } from './orders.js';
@@ -14,14 +16,26 @@ import { TIERS } from './pricing.js';
 import { createSitePipeline } from './site/pipeline.js';
 import { createSiteUsageLimiter } from './site/usage-limits.js';
 import { validateSiteRequest } from './site/request.js';
+import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from './middlewares/clerkProxyMiddleware.js';
 
-const PURCHASE_FIELDS =
-  'id, type, tier, prompt, amount_cents, status, progress, progress_message, project_name, file_count, error, license_key, created_at, updated_at';
-
-export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
+export function createApp({
+  config,
+  db,
+  stripe,
+  jobs,
+  sitePipeline = null,
+  clerkAuthMiddleware,
+  getAuthFromRequest = getAuth,
+}) {
   const app = express();
   app.disable('x-powered-by');
   const siteLimiter = createSiteUsageLimiter(config.siteLimits);
+  const checkoutLimiter = createSiteUsageLimiter({
+    perUserMinute: 3,
+    perUserDay: 20,
+    perIpDay: 30,
+    globalPerDay: 100,
+  });
   const freeGenerationLimiter = createSiteUsageLimiter({
     perUserMinute: 1,
     perUserDay: 3,
@@ -43,6 +57,14 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
     next();
   });
 
+  app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+  app.use(clerkAuthMiddleware ?? clerkMiddleware((req) => ({
+    publishableKey: publishableKeyFromHost(
+      getClerkProxyHost(req) ?? '',
+      process.env.CLERK_PUBLISHABLE_KEY,
+    ),
+  })));
+
   // Stripe signs the exact raw bytes, so this route must run before express.json().
   const rawJson = express.raw({ type: 'application/json', limit: '1mb' });
   const handleStripeWebhook = async (req, res) => {
@@ -62,16 +84,10 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
         session.payment_status === 'paid'
       ) {
         // Conditional update makes Stripe's retries harmless: only the first one queues work.
-        const { data } = await db
-          .from('purchases')
-          .update({ status: 'queued', progress_message: 'Payment received' })
-          .eq('id', purchaseId)
-          .eq('status', 'pending')
-          .select('id')
-          .maybeSingle();
+        const data = await db.markPaidAndQueue(purchaseId);
         if (data) jobs.enqueue(data.id);
       } else if (purchaseId && event.type === 'checkout.session.expired') {
-        await db.from('purchases').update({ status: 'cancelled' }).eq('id', purchaseId).eq('status', 'pending');
+        await db.cancelPendingPurchase(purchaseId);
       }
       // Respond right away; generation runs in the background.
       res.json({ received: true });
@@ -87,13 +103,14 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
   app.use(express.json({ limit: '64kb' }));
 
   const requireUser = async (req, res, next) => {
-    const header = req.headers.authorization ?? '';
-    const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-    if (!token) return res.status(401).json({ error: 'Sign in first.' });
     try {
-      const { data, error } = await db.auth.getUser(token);
-      if (error || !data?.user) return res.status(401).json({ error: 'Your session expired. Sign in again.' });
-      req.user = data.user;
+      const session = getAuthFromRequest(req);
+      if (!session?.userId) return res.status(401).json({ error: 'Sign in first.' });
+      const claims = session.sessionClaims;
+      req.user = {
+        id: session.userId,
+        email: typeof claims?.email === 'string' ? claims.email : undefined,
+      };
       return next();
     } catch {
       return res.status(503).json({ error: 'Sign-in service is temporarily unavailable.' });
@@ -183,26 +200,25 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
     requireUser,
     handle(async (req, res) => {
       if (!stripe) return res.status(503).json({ error: 'Payments are not set up yet.' });
+      const limit = checkoutLimiter.consume({ userId: req.user.id, ip: req.ip });
+      if (!limit.allowed) {
+        res.setHeader('Retry-After', String(limit.retryAfterSeconds));
+        return res.status(429).json({ error: 'Too many checkout attempts. Try again later.' });
+      }
       const order = validateOrder(req.body);
-      const { data: purchase, error } = await db
-        .from('purchases')
-        .insert({
-          user_id: req.user.id,
-          email: req.user.email,
-          type: order.type,
-          tier: order.tier,
-          prompt: order.prompt,
-          amount_cents: order.amountCents,
-          status: 'pending',
-        })
-        .select('id')
-        .single();
-      if (error) throw error;
+      const purchase = await db.createPurchase({
+        userId: req.user.id,
+        type: order.type,
+        tier: order.tier,
+        prompt: order.prompt,
+        amountCents: order.amountCents,
+        status: 'pending',
+      });
       const tier = TIERS[order.tier];
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
         managed_payments: { enabled: false },
-        customer_email: req.user.email,
+        ...(req.user.email ? { customer_email: req.user.email } : {}),
         client_reference_id: purchase.id,
         line_items: [
           {
@@ -219,7 +235,7 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
         success_url: `${config.frontendUrl}/purchases?purchase=${purchase.id}&paid=1`,
         cancel_url: `${config.frontendUrl}/purchases?purchase=${purchase.id}&cancelled=1`,
       });
-      await db.from('purchases').update({ stripe_session_id: session.id }).eq('id', purchase.id);
+      await db.attachStripeSession(purchase.id, session.id);
       res.json({ url: session.url, purchaseId: purchase.id });
     }),
   );
@@ -235,22 +251,16 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
       const limit = freeGenerationLimiter.consume({ userId: req.user.id, ip: req.ip });
       if (!limit.allowed) return res.status(429).json({ error: 'You have reached the free generation limit.' });
       const order = validateOrder(req.body);
-      const { data, error } = await db
-        .from('purchases')
-        .insert({
-          user_id: req.user.id,
-          email: req.user.email,
-          type: order.type,
-          tier: order.tier,
-          prompt: order.prompt,
-          amount_cents: 0,
-          status: 'queued',
-        })
-        .select('id')
-        .single();
-      if (error) throw error;
-      jobs.enqueue(data.id);
-      res.status(202).json({ purchaseId: data.id });
+      const purchase = await db.createPurchase({
+        userId: req.user.id,
+        type: order.type,
+        tier: order.tier,
+        prompt: order.prompt,
+        amountCents: 0,
+        status: 'queued',
+      });
+      jobs.enqueue(purchase.id);
+      res.status(202).json({ purchaseId: purchase.id });
     }),
   );
 
@@ -258,14 +268,7 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
     '/api/purchases',
     requireUser,
     handle(async (req, res) => {
-      const { data, error } = await db
-        .from('purchases')
-        .select(PURCHASE_FIELDS)
-        .eq('user_id', req.user.id)
-        .order('created_at', { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      res.json({ purchases: data });
+      res.json({ purchases: await db.listPurchasesForUser(req.user.id) });
     }),
   );
 
@@ -273,14 +276,9 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
     '/api/purchases/:id',
     requireUser,
     handle(async (req, res) => {
-      const { data } = await db
-        .from('purchases')
-        .select(PURCHASE_FIELDS)
-        .eq('id', req.params.id)
-        .eq('user_id', req.user.id)
-        .maybeSingle();
-      if (!data) return res.status(404).json({ error: 'Purchase not found.' });
-      res.json({ purchase: data });
+      const purchase = await db.getPurchaseForUser(req.params.id, req.user.id);
+      if (!purchase) return res.status(404).json({ error: 'Purchase not found.' });
+      res.json({ purchase });
     }),
   );
 
@@ -288,22 +286,19 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
     '/api/purchases/:id/download',
     requireUser,
     handle(async (req, res) => {
-      const { data } = await db
-        .from('purchases')
-        .select('status, storage_path')
-        .eq('id', req.params.id)
-        .eq('user_id', req.user.id)
-        .maybeSingle();
-      if (!data) return res.status(404).json({ error: 'Purchase not found.' });
-      if (data.status !== 'ready' || !data.storage_path) {
+      const purchase = await db.getPurchaseDownload(req.params.id, req.user.id);
+      if (!purchase) return res.status(404).json({ error: 'Purchase not found.' });
+      if (purchase.status !== 'ready' || !purchase.archive) {
         return res.status(409).json({ error: 'Your project is not ready yet.' });
       }
-      // A fresh short-lived link on every request, so links never go stale in the database.
-      const { data: signed, error } = await db.storage
-        .from(config.storageBucket)
-        .createSignedUrl(data.storage_path, 60 * 60, { download: true });
-      if (error) throw error;
-      res.json({ url: signed.signedUrl, expiresInSeconds: 3600 });
+      const filename = String(purchase.project_name || 'forge-project')
+        .replace(/[^a-z0-9_-]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80) || 'forge-project';
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.zip"`);
+      res.setHeader('Content-Length', String(purchase.archive.length));
+      res.send(purchase.archive);
     }),
   );
 
@@ -313,9 +308,7 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
 
 async function main() {
   const config = loadConfig();
-  const db = createClient(config.supabaseUrl, config.supabaseServiceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const db = createDatabase({ databaseUrl: config.databaseUrl });
   const stripe = config.paymentsEnabled ? new Stripe(config.stripeSecretKey) : null;
   const chat = createOpenRouterChat({ apiKey: config.openrouterKey, referer: config.frontendUrl });
   const jobs = createJobRunner({ db, config, chat });
@@ -338,17 +331,6 @@ async function main() {
     if (!stripe) console.log('Payments are off (add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to turn them on).');
     if (config.siteGenerationEnabled && !sitePipeline) {
       console.warn('Website generation is off because OpenRouter is not configured.');
-    }
-
-    // Ensure storage bucket exists
-    try {
-      const { data: buckets } = await db.storage.listBuckets();
-      if (!buckets?.some((b) => b.name === config.storageBucket)) {
-        await db.storage.createBucket(config.storageBucket, { public: false });
-        console.log(`[storage] Created bucket "${config.storageBucket}"`);
-      }
-    } catch (e) {
-      console.warn('[storage] bucket check:', e.message);
     }
 
     const resumed = await jobs.recover().catch((err) => (console.error('[jobs] recover failed', err), 0));

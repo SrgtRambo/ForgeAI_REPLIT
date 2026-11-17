@@ -9,14 +9,7 @@ export function createJobRunner({ db, config, chat, log = console }) {
 
   async function run(purchaseId) {
     // Atomic claim: only one worker can move a purchase from queued to processing.
-    const { data: purchase, error } = await db
-      .from('purchases')
-      .update({ status: 'processing', progress: 1, progress_message: 'Starting', error: null })
-      .eq('id', purchaseId)
-      .eq('status', 'queued')
-      .select('*')
-      .maybeSingle();
-    if (error) throw error;
+    const purchase = await db.claimQueuedPurchase(purchaseId);
     if (!purchase) return;
 
     let lastWrite = 0;
@@ -24,7 +17,7 @@ export function createJobRunner({ db, config, chat, log = console }) {
       const now = Date.now();
       if (now - lastWrite < 1500 && progress < 100) return;
       lastWrite = now;
-      await db.from('purchases').update({ progress, progress_message: message }).eq('id', purchaseId);
+      await db.updatePurchaseProgress(purchaseId, progress, message);
     };
 
     try {
@@ -38,29 +31,20 @@ export function createJobRunner({ db, config, chat, log = console }) {
       });
       await onProgress(92, 'Packaging your files');
       const zip = await buildZip(project.name, project.files);
-      const storagePath = `${purchase.user_id}/${purchase.id}.zip`;
-      const { error: uploadError } = await db.storage
-        .from(config.storageBucket)
-        .upload(storagePath, zip, { contentType: 'application/zip', upsert: true });
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-      await db
-        .from('purchases')
-        .update({
-          status: 'ready',
-          progress: 100,
-          progress_message: 'Ready to download',
-          storage_path: storagePath,
-          file_count: Object.keys(project.files).length,
-          project_name: project.name,
-        })
-        .eq('id', purchaseId);
+      if (zip.byteLength > 20 * 1024 * 1024) throw new Error('Generated archive exceeds the storage limit.');
+      await db.markPurchaseReady({
+        purchaseId,
+        projectName: project.name,
+        fileCount: Object.keys(project.files).length,
+        archive: zip,
+      });
       log.info?.(`[jobs] ${purchaseId} ready (${Object.keys(project.files).length} files)`);
     } catch (err) {
-      log.error?.(`[jobs] ${purchaseId} failed:`, err);
+      log.error?.(`[jobs] ${purchaseId} failed:`, err?.name || 'Error');
       const message = err instanceof GenerationError
         ? `${err.message} Contact support for a free retry.`
         : 'Generation failed because of a server problem. Contact support for a free retry.';
-      await db.from('purchases').update({ status: 'failed', error: message.slice(0, 500) }).eq('id', purchaseId);
+      await db.markPurchaseFailed(purchaseId, message.slice(0, 500));
     }
   }
 
@@ -84,10 +68,9 @@ export function createJobRunner({ db, config, chat, log = console }) {
     },
     /** Re-queues work interrupted by a restart. Assumes a single server instance. */
     async recover() {
-      await db.from('purchases').update({ status: 'queued' }).eq('status', 'processing');
-      const { data } = await db.from('purchases').select('id').eq('status', 'queued').order('created_at');
-      for (const row of data ?? []) this.enqueue(row.id);
-      return data?.length ?? 0;
+      const rows = await db.recoverPurchases();
+      for (const row of rows) this.enqueue(row.id);
+      return rows.length;
     },
     get size() {
       return queue.length + active.size;

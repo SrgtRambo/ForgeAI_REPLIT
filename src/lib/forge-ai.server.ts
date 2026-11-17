@@ -1,8 +1,8 @@
 // Server-only Forge AI handler: verifies the caller, enforces per-user limits, and calls OpenRouter.
-import { createClient } from "@supabase/supabase-js";
+import { auth } from "@clerk/tanstack-react-start/server";
 
-import type { Database } from "@/integrations/supabase/types";
 import { FORGE_AI_LIMITS, ForgeRequestError, validateForgeChat } from "./forge-ai-rules";
+import { claimAiRequest, countAiRequests } from "@/server/ai-usage";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = process.env["OPENROUTER_MODEL"] || "google/gemini-2.5-flash";
@@ -19,28 +19,9 @@ function json(status: number, value: unknown) {
   return new Response(JSON.stringify(value), { status, headers: baseHeaders });
 }
 
-async function authenticate(request: Request) {
-  const header = request.headers.get("authorization") ?? "";
-  if (!header.startsWith("Bearer ")) return null;
-  const token = header.slice(7).trim();
-  if (token.split(".").length !== 3) return null;
-  const url = process.env["SUPABASE_URL"];
-  const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
-  if (!url || !key) throw new Error("Backend configuration is missing.");
-  const supabase = createClient<Database>(url, key, {
-    global: {
-      headers: { Authorization: `Bearer ${token}` },
-      fetch: (input, init) => {
-        const headers = new Headers(init?.headers);
-        headers.set("apikey", key);
-        return fetch(input, { ...init, headers });
-      },
-    },
-    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
-  });
-  const { data, error } = await supabase.auth.getClaims(token);
-  if (error || !data?.claims?.sub) return null;
-  return { supabase, userId: data.claims.sub };
+async function authenticate() {
+  const session = await auth();
+  return session.userId ? { userId: session.userId } : null;
 }
 
 function openRouterErrorMessage(status: number) {
@@ -52,32 +33,29 @@ function openRouterErrorMessage(status: number) {
 }
 
 export async function handleForgeStatus(request: Request) {
-  const auth = await authenticate(request);
-  if (!auth) return json(401, { error: "Sign in to use Forge AI.", status: 401 });
+  const session = await authenticate();
+  if (!session) return json(401, { error: "Sign in to use Forge AI.", status: 401 });
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count } = await auth.supabase
-    .from("ai_requests")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", since);
+  const count = await countAiRequests(session.userId, new Date(since));
   return json(200, {
     ok: true,
     provider: "OpenRouter",
     model: MODEL,
     openrouterConfigured: Boolean(process.env["OPENROUTER_API_KEY"]),
-    usedToday: count ?? 0,
+    usedToday: count,
     perDay: FORGE_AI_LIMITS.perDay,
     perMinute: FORGE_AI_LIMITS.perMinute,
   });
 }
 
 export async function handleForgeChat(request: Request) {
-  const auth = await authenticate(request);
-  if (!auth) return json(401, { error: "Sign in to use Forge AI.", status: 401 });
+  const session = await authenticate();
+  if (!session) return json(401, { error: "Sign in to use Forge AI.", status: 401 });
 
-  const raw = await request.text();
-  if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) return json(413, { error: "Request is too large.", status: 413 });
   let validated;
   try {
+    const raw = await request.text();
+    if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) return json(413, { error: "Request is too large.", status: 413 });
     validated = validateForgeChat(JSON.parse(raw));
   } catch (error) {
     if (error instanceof ForgeRequestError) return json(error.status, { error: error.message, status: error.status });
@@ -87,18 +65,16 @@ export async function handleForgeChat(request: Request) {
   const apiKey = process.env["OPENROUTER_API_KEY"];
   if (!apiKey) return json(503, { error: "OpenRouter is not configured. Add OPENROUTER_API_KEY in Replit Secrets.", status: 503 });
 
-  const { data: claim, error: claimError } = await auth.supabase.rpc("claim_ai_request", {
-    _per_minute: FORGE_AI_LIMITS.perMinute,
-    _per_day: FORGE_AI_LIMITS.perDay,
-  });
-  if (claimError) {
-    console.error("[forge-ai] rate limit check failed", claimError.message);
+  let claim;
+  try {
+    claim = await claimAiRequest(session.userId, FORGE_AI_LIMITS.perMinute, FORGE_AI_LIMITS.perDay);
+  } catch (error) {
+    console.error("[forge-ai] rate limit check failed", error instanceof Error ? error.name : "Error");
     return json(500, { error: "Could not check your AI usage. Try again.", status: 500 });
   }
-  const claimResult = claim as { allowed?: boolean; reason?: string } | null;
-  if (!claimResult?.allowed) {
+  if (!claim.allowed) {
     const message =
-      claimResult?.reason === "day"
+      claim.reason === "day"
         ? `You have reached the daily limit of ${FORGE_AI_LIMITS.perDay} Forge AI requests. Try again tomorrow.`
         : `Too many Forge AI requests. The limit is ${FORGE_AI_LIMITS.perMinute} per minute; wait a minute and try again.`;
     return json(429, { error: message, status: 429 });

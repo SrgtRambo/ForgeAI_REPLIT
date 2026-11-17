@@ -26,11 +26,9 @@
   async function postChat(body, signal) {
     const cloud = window.ForgeCloud;
     if (!cloud) throw Object.assign(new Error("Sign in to use Forge AI."), { status: 401 });
-    const token = await cloud.getAccessToken();
-    if (!token) throw Object.assign(new Error("Your session has ended. Sign in again to use Forge AI."), { status: 401 });
     const response = await fetch("/api/forge/chat", {
-      method: "POST", signal,
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      method: "POST", signal, credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
     const payload = await response.json().catch(() => null);
@@ -424,12 +422,11 @@
   }
   async function checkConnection() {
     const cloud = window.ForgeCloud;
-    const token = cloud && await cloud.getAccessToken();
-    if (!token) throw new Error("Sign in to use Forge AI.");
+    if (!cloud) throw new Error("Sign in to use Forge AI.");
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch("/api/forge/chat", { method: "GET", signal: controller.signal, headers: { Authorization: "Bearer " + token } });
+      const response = await fetch("/api/forge/chat", { method: "GET", signal: controller.signal, credentials: "same-origin" });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data || data.error) throw new Error((data && data.error) || "Forge AI returned HTTP " + response.status + ".");
       if (!data.openrouterConfigured) throw new Error("OpenRouter is not configured. Add OPENROUTER_API_KEY in Replit Secrets.");

@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAuth } from "@clerk/react";
 
 import heroImage from "@/assets/forge-hero.jpg";
 import { ForgeLogo } from "@/components/forge-logo";
 import { Button } from "@/components/ui/button";
-import { useAuthSession } from "@/lib/auth-store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,8 +34,8 @@ const steps = [
 ];
 
 function Landing() {
-  const { session } = useAuthSession();
-  const signedIn = Boolean(session);
+  const { isLoaded, isSignedIn } = useAuth();
+  const signedIn = isLoaded && isSignedIn;
 
   return (
     <div className="min-h-screen bg-background">
@@ -54,10 +54,10 @@ function Landing() {
           ) : (
             <>
               <Button asChild variant="ghost" size="sm">
-                <Link to="/auth">Sign in</Link>
+                <Link to="/sign-in">Sign in</Link>
               </Button>
               <Button asChild variant="forge" size="sm">
-                <Link to="/auth" search={{ mode: "signup" }}>Get started</Link>
+                <Link to="/sign-up">Get started</Link>
               </Button>
             </>
           )}
@@ -84,11 +84,11 @@ function Landing() {
             </p>
             <div className="animate-rise mt-9 flex flex-wrap gap-3">
               <Button asChild variant="forge" size="xl">
-                {signedIn ? <Link to="/studio">Open your studio →</Link> : <Link to="/auth" search={{ mode: "signup" }}>Start building free →</Link>}
+                {signedIn ? <Link to="/studio">Open your studio →</Link> : <Link to="/sign-up">Start building free →</Link>}
               </Button>
               {!signedIn && (
                 <Button asChild variant="outline" size="xl">
-                  <Link to="/auth">I have an account</Link>
+                  <Link to="/sign-in">I have an account</Link>
                 </Button>
               )}
             </div>

@@ -13,9 +13,15 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
+import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as ApiForgeChatRouteImport } from './routes/api/forge/chat'
+import { Route as ApiForgeProfileRouteImport } from './routes/api/forge/profile'
+import { Route as ApiForgeProjectsRouteImport } from './routes/api/forge/projects'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -36,6 +42,16 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignUpRoute = SignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
   id: '/account',
   path: '/account',
@@ -46,9 +62,29 @@ const AuthenticatedStudioRoute = AuthenticatedStudioRouteImport.update({
   path: '/studio',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const SignInSplatRoute = SignInSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => SignInRoute,
+} as any)
+const SignUpSplatRoute = SignUpSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => SignUpRoute,
+} as any)
 const ApiForgeChatRoute = ApiForgeChatRouteImport.update({
   id: '/api/forge/chat',
   path: '/api/forge/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiForgeProfileRoute = ApiForgeProfileRouteImport.update({
+  id: '/api/forge/profile',
+  path: '/api/forge/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiForgeProjectsRoute = ApiForgeProjectsRouteImport.update({
+  id: '/api/forge/projects',
+  path: '/api/forge/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -56,17 +92,29 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sign-in': typeof SignInRouteWithChildren
+  '/sign-up': typeof SignUpRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
   '/studio': typeof AuthenticatedStudioRoute
+  '/sign-in/$': typeof SignInSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/api/forge/chat': typeof ApiForgeChatRoute
+  '/api/forge/profile': typeof ApiForgeProfileRoute
+  '/api/forge/projects': typeof ApiForgeProjectsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sign-in': typeof SignInRouteWithChildren
+  '/sign-up': typeof SignUpRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
   '/studio': typeof AuthenticatedStudioRoute
+  '/sign-in/$': typeof SignInSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/api/forge/chat': typeof ApiForgeChatRoute
+  '/api/forge/profile': typeof ApiForgeProfileRoute
+  '/api/forge/projects': typeof ApiForgeProjectsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -74,9 +122,15 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/sign-in': typeof SignInRouteWithChildren
+  '/sign-up': typeof SignUpRouteWithChildren
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
+  '/sign-in/$': typeof SignInSplatRoute
+  '/sign-up/$': typeof SignUpSplatRoute
   '/api/forge/chat': typeof ApiForgeChatRoute
+  '/api/forge/profile': typeof ApiForgeProfileRoute
+  '/api/forge/projects': typeof ApiForgeProjectsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -84,26 +138,44 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/reset-password'
+    | '/sign-in'
+    | '/sign-up'
     | '/account'
     | '/studio'
+    | '/sign-in/$'
+    | '/sign-up/$'
     | '/api/forge/chat'
+    | '/api/forge/profile'
+    | '/api/forge/projects'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/reset-password'
+    | '/sign-in'
+    | '/sign-up'
     | '/account'
     | '/studio'
+    | '/sign-in/$'
+    | '/sign-up/$'
     | '/api/forge/chat'
+    | '/api/forge/profile'
+    | '/api/forge/projects'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/reset-password'
+    | '/sign-in'
+    | '/sign-up'
     | '/_authenticated/account'
     | '/_authenticated/studio'
+    | '/sign-in/$'
+    | '/sign-up/$'
     | '/api/forge/chat'
+    | '/api/forge/profile'
+    | '/api/forge/projects'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -111,7 +183,11 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SignInRoute: typeof SignInRouteWithChildren
+  SignUpRoute: typeof SignUpRouteWithChildren
   ApiForgeChatRoute: typeof ApiForgeChatRoute
+  ApiForgeProfileRoute: typeof ApiForgeProfileRoute
+  ApiForgeProjectsRoute: typeof ApiForgeProjectsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -144,6 +220,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-up': {
+      id: '/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof SignUpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/account': {
       id: '/_authenticated/account'
       path: '/account'
@@ -158,11 +248,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/sign-in/$': {
+      id: '/sign-in/$'
+      path: '/$'
+      fullPath: '/sign-in/$'
+      preLoaderRoute: typeof SignInSplatRouteImport
+      parentRoute: typeof SignInRoute
+    }
+    '/sign-up/$': {
+      id: '/sign-up/$'
+      path: '/$'
+      fullPath: '/sign-up/$'
+      preLoaderRoute: typeof SignUpSplatRouteImport
+      parentRoute: typeof SignUpRoute
+    }
     '/api/forge/chat': {
       id: '/api/forge/chat'
       path: '/api/forge/chat'
       fullPath: '/api/forge/chat'
       preLoaderRoute: typeof ApiForgeChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/forge/profile': {
+      id: '/api/forge/profile'
+      path: '/api/forge/profile'
+      fullPath: '/api/forge/profile'
+      preLoaderRoute: typeof ApiForgeProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/forge/projects': {
+      id: '/api/forge/projects'
+      path: '/api/forge/projects'
+      fullPath: '/api/forge/projects'
+      preLoaderRoute: typeof ApiForgeProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -181,12 +299,38 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface SignInRouteChildren {
+  SignInSplatRoute: typeof SignInSplatRoute
+}
+
+const SignInRouteChildren: SignInRouteChildren = {
+  SignInSplatRoute: SignInSplatRoute,
+}
+
+const SignInRouteWithChildren =
+  SignInRoute._addFileChildren(SignInRouteChildren)
+
+interface SignUpRouteChildren {
+  SignUpSplatRoute: typeof SignUpSplatRoute
+}
+
+const SignUpRouteChildren: SignUpRouteChildren = {
+  SignUpSplatRoute: SignUpSplatRoute,
+}
+
+const SignUpRouteWithChildren =
+  SignUpRoute._addFileChildren(SignUpRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SignInRoute: SignInRouteWithChildren,
+  SignUpRoute: SignUpRouteWithChildren,
   ApiForgeChatRoute: ApiForgeChatRoute,
+  ApiForgeProfileRoute: ApiForgeProfileRoute,
+  ApiForgeProjectsRoute: ApiForgeProjectsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
