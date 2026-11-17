@@ -2,9 +2,9 @@
 
 create table if not exists public.purchases (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
   email text,
-  type text not null check (type in ('website', 'saas', 'social', 'spreadsheet', 'software')),
+  type text not null,
   tier text not null check (tier in ('standard', 'pro')),
   prompt text not null check (char_length(prompt) between 20 and 6000),
   amount_cents integer not null default 0 check (amount_cents >= 0),
@@ -21,6 +21,12 @@ create table if not exists public.purchases (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Keep existing installations aligned with the types supported by src/archetypes.js.
+alter table public.purchases drop constraint if exists purchases_type_check;
+alter table public.purchases
+  add constraint purchases_type_check
+  check (type in ('website', 'restaurant', 'services', 'saas', 'social', 'spreadsheet', 'software'));
 
 create index if not exists purchases_user_created_idx on public.purchases (user_id, created_at desc);
 create index if not exists purchases_status_idx on public.purchases (status) where status in ('queued', 'processing');

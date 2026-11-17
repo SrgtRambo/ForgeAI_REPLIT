@@ -13,12 +13,15 @@ export class ModelError extends Error {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function createOpenRouterChat({ apiKey, referer = 'https://forgeai.app', title = 'Forge AI', timeoutMs = 180_000, retries = 3 }) {
-  return async function chat({ model, messages, maxTokens, json = false, temperature = 0.4 }) {
+  return async function chat({ model, messages, maxTokens, json = false, temperature = 0.4, signal }) {
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt++) {
+      if (signal?.aborted) throw new ModelError('Request was cancelled.', 499);
       if (attempt) await sleep(Math.min(2000 * 2 ** (attempt - 1), 15_000));
       let response;
       try {
+        const timeoutSignal = AbortSignal.timeout(timeoutMs);
+        const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
         response = await fetch(ENDPOINT, {
           method: 'POST',
           headers: {
@@ -34,9 +37,10 @@ export function createOpenRouterChat({ apiKey, referer = 'https://forgeai.app', 
             temperature,
             ...(json ? { response_format: { type: 'json_object' } } : {}),
           }),
-          signal: AbortSignal.timeout(timeoutMs),
+          signal: requestSignal,
         });
       } catch (error) {
+        if (signal?.aborted) throw new ModelError('Request was cancelled.', 499);
         lastError = new ModelError(`Could not reach OpenRouter: ${error.message}`, 0);
         continue;
       }

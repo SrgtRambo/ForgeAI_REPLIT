@@ -1,8 +1,8 @@
 // Pure request rules for the Forge AI chat route. Kept free of server imports so they can be unit tested.
 
 export const FORGE_AI_LIMITS = {
-  perMinute: 20,
-  perDay: 300,
+  perMinute: 5,
+  perDay: 30,
   maxMessages: 4,
   maxMessageChars: 24000,
   maxSchemaChars: 32000,

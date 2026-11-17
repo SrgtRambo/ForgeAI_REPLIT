@@ -70,3 +70,17 @@ test('site pipeline caps model calls and refuses oversized output', async () => 
     /too large/,
   );
 });
+
+test('site pipeline cancels model work when its overall deadline expires', async () => {
+  const pipeline = createSitePipeline({
+    modelAnalysis: 'test-model',
+    deadlineMs: 10,
+    chat: async ({ signal }) => new Promise((_, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true });
+    }),
+  });
+  await assert.rejects(
+    () => pipeline({ businessName: 'Summit Plumbing', description: 'A clear website for local plumbing repairs and fixture installation.' }),
+    (error) => error.status === 408 && /time limit/.test(error.message),
+  );
+});

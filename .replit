@@ -37,11 +37,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd backend && npm run dev"
+args = "PATH=/nix/store/3kgvidr44ycfh6swb9n6dgqsb18sllph-nodejs-24.22.1/bin:$PATH npm --prefix backend run dev"
 waitForPort = 3001
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
 
 [[ports]]
 localPort = 5000

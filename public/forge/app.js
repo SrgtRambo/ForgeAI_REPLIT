@@ -64,13 +64,14 @@
     });
   }
   function updateOverview() {
+    const selectedProject = currentSite || current;
     $("statProjects").textContent = String(projects.length);
-    $("statStage").textContent = current ? current.stage : "Start";
-    $("statProjectName").textContent = current ? current.name : "No project selected";
+    $("statStage").textContent = selectedProject ? selectedProject.stage : "Start";
+    $("statProjectName").textContent = selectedProject ? selectedProject.name : "No project selected";
     const sourceStages = ["index.html", "css/styles.css", "js/app.js"];
-    const savedCount = currentFiles ? Object.keys(currentFiles).length : current && current.aiDraftFiles ? sourceStages.filter((path) => typeof current.aiDraftFiles[path] === "string").length : 0;
+    const savedCount = currentSite ? Object.keys(currentSite.files || {}).length : currentFiles ? Object.keys(currentFiles).length : current && current.aiDraftFiles ? sourceStages.filter((path) => typeof current.aiDraftFiles[path] === "string").length : 0;
     $("statFiles").textContent = String(savedCount);
-    $("statFilesNote").textContent = current && current.aiDraftFiles && !currentFiles ? "AI source files saved; generation can resume" : "Files saved for the selected project";
+    $("statFilesNote").textContent = currentSite ? "Website files saved for the selected site" : current && current.aiDraftFiles && !currentFiles ? "AI source files saved; generation can resume" : "Files saved for the selected project";
     const title = $("dashboardNextTitle");
     const description = $("dashboardNextDescription");
     const button = $("dashboardContinue");
@@ -122,7 +123,7 @@
       const field = $(id); if (field) field.value = req[id] || "";
     }
   }
-  function startNewProject() { newProjectDraft = true; pendingRequirements = null; $("discoveryForm").reset(); $("followupPanel").classList.add("hidden"); $("followupQuestions").replaceChildren(); clearNotice("discoveryNotice"); navigate("discovery"); }
+  function startNewProject() { currentSite = null; newProjectDraft = true; pendingRequirements = null; $("discoveryForm").reset(); $("followupPanel").classList.add("hidden"); $("followupQuestions").replaceChildren(); clearNotice("discoveryNotice"); navigate("discovery"); }
   function renderRequirements(req) {
     const sections = [
       ["BUSINESS OVERVIEW", `${req.business} · ${req.industry} · ${req.size}${req.employees ? " · " + req.employees + " employees" : ""}`],
@@ -391,8 +392,9 @@
     $("sitePreviewEmpty").classList.add("hidden");
     $("downloadWebsiteZip").disabled = !files["index.html"];
     renderSiteQa(project);
+    updateOverview();
   }
-  function openSavedProject(id) { const project = projects.find((item) => item.id === id); if (!project) return; if (project.kind === "website") { showWebsiteProject(project); navigate("website"); showToast("Opened " + project.name + "."); return; } newProjectDraft = false; current = project; currentFiles = project.files || null; currentFolder = null; lastTestResults = project.testResults || []; showCurrentProject(); if (currentFiles) { installFiles(currentFiles, true); if (project.testResults) showTests(project.testResults); } else { $("generatorProject").textContent = project.name; } navigate("generator"); showToast("Opened " + project.name + " from your projects."); }
+  function openSavedProject(id) { const project = projects.find((item) => item.id === id); if (!project) return; if (project.kind === "website") { showWebsiteProject(project); navigate("website"); showToast("Opened " + project.name + "."); return; } currentSite = null; newProjectDraft = false; current = project; currentFiles = project.files || null; currentFolder = null; lastTestResults = project.testResults || []; showCurrentProject(); if (currentFiles) { installFiles(currentFiles, true); if (project.testResults) showTests(project.testResults); } else { $("generatorProject").textContent = project.name; } navigate("generator"); showToast("Opened " + project.name + " from your projects."); }
   function addOrUpdateCurrent() { const index = projects.findIndex((project) => project.id === current.id); if (index < 0) projects.unshift(current); else projects[index] = current; return persist(); }
 
   $("siteBuilderForm").addEventListener("submit", async (event) => {

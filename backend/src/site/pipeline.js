@@ -29,6 +29,7 @@ export function createSitePipeline({
   idFactory = randomUUID,
   maxModelCalls = 10,
   maxOutputBytes = DEFAULT_MAX_OUTPUT_BYTES,
+  deadlineMs = 180_000,
 }) {
   let modelCalls = 0;
   const boundedChat = async (request) => {
@@ -51,9 +52,24 @@ export function createSitePipeline({
     maxCopyRepairs: 3,
   });
 
-  return async function generateSite(input) {
+  return async function generateSite(input, { signal } = {}) {
     modelCalls = 0;
-    const result = await analyzer.run(input);
+    const deadline = AbortSignal.timeout(deadlineMs);
+    const generationSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    let result;
+    try {
+      result = await analyzer.run(input, { signal: generationSignal });
+    } catch (error) {
+      if (deadline.aborted && !signal?.aborted) {
+        const timeoutError = new Error('Website generation reached its time limit. Try again with a shorter brief.');
+        timeoutError.status = 408;
+        throw timeoutError;
+      }
+      throw error;
+    }
+    if (signal?.aborted) throw new Error('Website generation was cancelled.');
+    result.spec.meta.businessName = input.businessName;
+    if (input.industry) result.spec.meta.industry = input.industry;
     const images = result.spec.images.map((image) => ({ ...image, source: 'none', filePath: null }));
     const built = await buildSite(result.spec, images);
     const totalBytes = Object.values(built.files).reduce(

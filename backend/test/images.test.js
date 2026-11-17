@@ -51,13 +51,18 @@ test('isAcceptableImageType accepts jpeg/png/webp', () => {
 
 test('isPrivateAddress rejects loopback and private ranges', () => {
   assert.equal(isPrivateAddress('127.0.0.1'), true);
-  assert.equal(isPrivateAddress('localhost'), false);
+  assert.equal(isPrivateAddress('localhost'), true);
+  assert.equal(isPrivateAddress('service.local'), true);
   assert.equal(isPrivateAddress('10.0.0.1'), true);
+  assert.equal(isPrivateAddress('100.64.0.1'), true);
+  assert.equal(isPrivateAddress('169.254.169.254'), true);
   assert.equal(isPrivateAddress('172.16.0.1'), true);
   assert.equal(isPrivateAddress('172.31.255.255'), true);
   assert.equal(isPrivateAddress('172.32.0.1'), false);
   assert.equal(isPrivateAddress('192.168.1.1'), true);
   assert.equal(isPrivateAddress('::1'), true);
+  assert.equal(isPrivateAddress('::ffff:127.0.0.1'), true);
+  assert.equal(isPrivateAddress('fe80::1'), true);
   assert.equal(isPrivateAddress('8.8.8.8'), false);
 });
 
@@ -155,7 +160,7 @@ test('processImageUrl rejects private/loopback addresses', async () => {
 
 test('processImageUrl rejects non-image content types', async () => {
   setFetch(async () => mockResponse({ status: 200, contentType: 'text/html', body: '<html></html>' }));
-  await assert.rejects(processImageUrl('https://example.com/image.jpg', '/tmp/out.jpg'), /Unsupported content type/);
+  await assert.rejects(processImageUrl('https://8.8.8.8/image.jpg', '/tmp/out.jpg'), /Unsupported content type/);
   restoreFetch();
 });
 

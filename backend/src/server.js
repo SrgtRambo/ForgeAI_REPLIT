@@ -21,7 +21,6 @@ const PURCHASE_FIELDS =
 export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
   const siteLimiter = createSiteUsageLimiter(config.siteLimits);
   const freeGenerationLimiter = createSiteUsageLimiter({
     perUserMinute: 1,
@@ -150,10 +149,16 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
       });
     }
 
+    const controller = new AbortController();
+    const cancelIfDisconnected = () => {
+      if (!res.writableFinished) controller.abort();
+    };
+    res.once('close', cancelIfDisconnected);
     try {
-      const result = await sitePipeline(input);
+      const result = await sitePipeline(input, { signal: controller.signal });
       return res.json(result);
     } catch (error) {
+      if (controller.signal.aborted) return;
       if (error?.status === 429) {
         return res.status(429).json({ error: error.message });
       }
@@ -163,8 +168,13 @@ export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
       if (error?.status === 402) {
         return res.status(503).json({ error: 'OpenRouter has no available credits for website generation.' });
       }
+      if (error?.status === 408) {
+        return res.status(504).json({ error: error.message });
+      }
       console.error('[site-generation]', error?.name || 'Error');
       return res.status(502).json({ error: 'The website could not be generated. Try a shorter description.' });
+    } finally {
+      res.off('close', cancelIfDisconnected);
     }
   });
 
@@ -309,9 +319,15 @@ async function main() {
   const stripe = config.paymentsEnabled ? new Stripe(config.stripeSecretKey) : null;
   const chat = createOpenRouterChat({ apiKey: config.openrouterKey, referer: config.frontendUrl });
   const jobs = createJobRunner({ db, config, chat });
+  const siteChat = createOpenRouterChat({
+    apiKey: config.openrouterKey,
+    referer: config.frontendUrl,
+    timeoutMs: 60_000,
+    retries: 1,
+  });
   const sitePipeline = config.siteGenerationEnabled && config.openrouterKey
     ? createSitePipeline({
-      chat,
+      chat: siteChat,
       modelAnalysis: config.models.analysis,
       modelCopy: config.models.copy,
     })

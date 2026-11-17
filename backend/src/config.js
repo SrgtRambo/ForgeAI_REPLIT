@@ -35,7 +35,7 @@ export function loadConfig() {
     siteLimits: {
       perUserMinute: readInt('SITE_PER_USER_PER_MINUTE', 1, 1, 10),
       perUserDay: readInt('SITE_PER_USER_PER_DAY', 3, 1, 30),
-      perIpDay: readInt('SITE_PER_IP_PER_DAY', 5, 1, 50),
+      perIpDay: readInt('SITE_PER_IP_PER_DAY', 50, 1, 100),
       globalPerDay: readInt('SITE_GLOBAL_PER_DAY', 20, 1, 200),
     },
     models: {

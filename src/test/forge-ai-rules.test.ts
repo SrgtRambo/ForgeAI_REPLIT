@@ -7,9 +7,9 @@ const schema = { type: "object", required: ["content"], properties: { content: {
 const user = { role: "user", content: "hello" };
 
 describe("Forge AI request rules", () => {
-  it("allows 20 AI requests per minute and 300 per day per user", () => {
-    expect(FORGE_AI_LIMITS.perMinute).toBe(20);
-    expect(FORGE_AI_LIMITS.perDay).toBe(300);
+  it("allows 5 AI requests per minute and 30 per day per user", () => {
+    expect(FORGE_AI_LIMITS.perMinute).toBe(5);
+    expect(FORGE_AI_LIMITS.perDay).toBe(30);
   });
 
   it("rejects more than 4 messages", () => {

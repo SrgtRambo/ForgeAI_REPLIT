@@ -149,12 +149,12 @@ export function createAnalyzer({ chat, modelAnalysis, modelCopy, maxRetries = MA
   if (!chat) throw new Error('createAnalyzer requires a chat function.');
   if (!modelAnalysis) throw new Error('createAnalyzer requires modelAnalysis.');
 
-  async function callModel({ model, messages, maxTokens = 4096, temperature = 0.3 }) {
-    return chat({ model, messages, maxTokens, json: true, temperature });
+  async function callModel({ model, messages, maxTokens = 4096, temperature = 0.3, signal }) {
+    return chat({ model, messages, maxTokens, json: true, temperature, signal });
   }
 
   /** Step A — business analysis. */
-  async function stepA(input) {
+  async function stepA(input, signal) {
     let lastError = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const messages = [
@@ -165,7 +165,7 @@ export function createAnalyzer({ chat, modelAnalysis, modelCopy, maxRetries = MA
         messages.push({ role: 'assistant', content: JSON.stringify({ error: lastError.message }) });
         messages.push({ role: 'user', content: 'The previous response was invalid: ' + lastError.message + '. Fix it and return only valid JSON.' });
       }
-      const { content } = await callModel({ model: modelAnalysis, messages });
+      const { content } = await callModel({ model: modelAnalysis, messages, signal });
       let parsed;
       try { parsed = JSON.parse(content); } catch (err) {
         lastError = new Error('Step A returned unparseable JSON: ' + err.message);
@@ -177,7 +177,7 @@ export function createAnalyzer({ chat, modelAnalysis, modelCopy, maxRetries = MA
   }
 
   /** Step B — site spec generation, validated against validateSpec. */
-  async function stepB(analysis, catalog, onRetry) {
+  async function stepB(analysis, catalog, onRetry, signal) {
     let lastError = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const messages = [
@@ -189,7 +189,7 @@ export function createAnalyzer({ chat, modelAnalysis, modelCopy, maxRetries = MA
         messages.push({ role: 'user', content: 'The previous spec failed validation: ' + lastError.message + '. Return only corrected JSON.' });
         if (onRetry) onRetry(attempt, lastError.message);
       }
-      const { content } = await callModel({ model: modelAnalysis, messages });
+      const { content } = await callModel({ model: modelAnalysis, messages, signal });
       let parsed;
       try { parsed = JSON.parse(content); } catch (err) {
         lastError = new Error('Step B returned unparseable JSON: ' + err.message);
@@ -203,7 +203,7 @@ export function createAnalyzer({ chat, modelAnalysis, modelCopy, maxRetries = MA
   }
 
   /** Step C — copy repair for banned phrases. */
-  async function stepC(content) {
+  async function stepC(content, signal) {
     const hits = scanBanned(content);
     if (hits.length === 0) return { content, changed: false };
     const phrases = hits.map((h) => h.phrase);
@@ -216,7 +216,7 @@ export function createAnalyzer({ chat, modelAnalysis, modelCopy, maxRetries = MA
       if (lastError) {
         messages.push({ role: 'user', content: 'The previous repair was invalid: ' + lastError.message + '. Return only valid JSON.' });
       }
-      const { content: reply } = await callModel({ model: modelCopy || modelAnalysis, messages });
+      const { content: reply } = await callModel({ model: modelCopy || modelAnalysis, messages, signal });
       let parsed;
       try { parsed = JSON.parse(reply); } catch (err) {
         lastError = new Error('Step C returned unparseable JSON: ' + err.message);
@@ -232,20 +232,20 @@ export function createAnalyzer({ chat, modelAnalysis, modelCopy, maxRetries = MA
   }
 
   /** Full pipeline A -> B -> C. Returns { analysis, spec, copyFixes }. */
-  async function run(input) {
+  async function run(input, { signal } = {}) {
     const catalog = {};
     for (const type of SECTION_TYPES) {
       catalog[type] = sectionVariants(type);
     }
-    const analysis = await stepA(input);
-    const spec = await stepB(analysis, catalog);
+    const analysis = await stepA(input, signal);
+    const spec = await stepB(analysis, catalog, undefined, signal);
     // Copy repair pass over all section content.
     let copyFixes = 0;
     for (const page of spec.pages) {
       for (const section of page.sections) {
         if (copyFixes >= maxCopyRepairs) break;
         if (section && section.content && typeof section.content === 'object') {
-          const result = await stepC(section.content);
+          const result = await stepC(section.content, signal);
           if (result.changed) {
             section.content = result.content;
             copyFixes++;

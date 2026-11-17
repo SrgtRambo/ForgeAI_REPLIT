@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Forge AI paid generation engine: Stripe checkout, async multi-file OpenRouter generation, zipped delivery from Supabase Storage.",
+  "description": "Forge AI website generation API and optional Stripe-backed project delivery service.",
   "engines": {
     "node": ">=20"
   },
