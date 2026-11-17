@@ -1,0 +1,20 @@
+{
+  "businessType": "creative",
+  "businessSummary": "A digital agency designing websites and brand identities for small businesses and startups.",
+  "audience": "Small business owners and startup founders who need a professional website and brand.",
+  "primaryAction": "contact",
+  "needs": { "team": true, "menu": false, "pricing": true, "gallery": true, "booking": false, "testimonials": true, "stats": true, "faq": true, "process": true },
+  "reasons": { "team": "Clients want to see the designers and strategists who will work on their brand." },
+  "tone": ["bold", "clear"],
+  "palette": { "bg": "#000000", "surface": "#111111", "ink": "#ffffff", "muted": "#888888", "brand": "#ff00ff", "accent": "#00ffff", "rationale": "Dark mode with magenta and cyan feels bold and creative for a digital agency." },
+  "fonts": { "display": "condensed-bold", "body": "Open Sans" },
+  "density": "compact",
+  "radius": "sharp",
+  "imageStyle": "monochrome",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "designer working at computer with code", "aspect": "landscape", "alt": "Designer coding at a computer" },
+    { "id": "gallery-1", "slot": "gallery-1", "query": "modern website on laptop screen", "aspect": "landscape", "alt": "Website design displayed on a laptop" },
+    { "id": "team-1", "slot": "team-1", "query": "creative director in studio", "aspect": "portrait", "alt": "Creative director at a desk" }
+  ],
+  "unknowns": ["What industries do they specialize in?", "Do they offer ongoing maintenance or just one-off projects?", "What is the typical project timeline?", "Do they provide copywriting or only design and development?"]
+}

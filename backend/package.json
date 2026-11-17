@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Forge AI paid generation engine: Stripe checkout, async multi-file OpenRouter generation, zipped delivery from Supabase Storage.",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
@@ -12,9 +14,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
+    "axe-core": "^4.14.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "jszip": "^3.10.1",
+    "playwright": "^1.65.1",
+    "sharp": "^0.35.5",
     "stripe": "^17.7.0"
   }
 }

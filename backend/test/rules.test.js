@@ -7,6 +7,8 @@ import { TIERS } from '../src/pricing.js';
 import { extractJson, stripCodeFence } from '../src/text.js';
 import { normalizePlan } from '../src/engine.js';
 
+import { getArchetype, ARCHETYPES } from '../src/archetypes.js';
+
 test('standard costs $9.99 and pro costs $19.99', () => {
   assert.equal(validateOrder({ prompt: 'A booking site for a dog grooming salon', tier: 'standard' }).amountCents, 999);
   assert.equal(validateOrder({ prompt: 'A booking site for a dog grooming salon', tier: 'pro' }).amountCents, 1999);
@@ -47,4 +49,35 @@ test('model replies wrapped in fences or prose still parse', () => {
   assert.equal(stripCodeFence('```html\n<p>hi</p>\n```'), '<p>hi</p>');
   assert.deepEqual(extractJson('Sure!\n```json\n{"a":1}\n```'), { a: 1 });
   assert.deepEqual(extractJson('Here you go: {"a":{"b":2}} enjoy'), { a: { b: 2 } });
+});
+
+test('archetypes include restaurant and services with staff linking and curated photography guidelines', () => {
+  assert.ok(ARCHETYPES.restaurant, 'restaurant archetype exists');
+  assert.ok(ARCHETYPES.services, 'services archetype exists');
+
+  const restaurant = getArchetype('restaurant');
+  assert.deepEqual(restaurant.requiredFiles, ['index.html', 'styles.css', 'app.js']);
+  assert.ok(restaurant.guidelines.some((g) => g.includes('Chef')), 'includes chef guidelines');
+  assert.ok(restaurant.guidelines.some((g) => g.includes('Unsplash')), 'includes curated photos');
+  assert.ok(restaurant.guidelines.some((g) => g.includes('Linkable')), 'includes linkable staff');
+
+  const services = getArchetype('services');
+  assert.ok(services.guidelines.some((g) => g.includes('Practitioner')), 'includes practitioner guidelines');
+
+  // Verify orders accept the new archetypes
+  const restaurantOrder = validateOrder({
+    prompt: 'A fine-dining French bistro with chef profiles and reservation booking',
+    type: 'restaurant',
+    tier: 'standard',
+  });
+  assert.equal(restaurantOrder.type, 'restaurant');
+  assert.equal(restaurantOrder.amountCents, 999);
+
+  const servicesOrder = validateOrder({
+    prompt: 'A holistic wellness clinic with staff acupuncturists and appointment calendar',
+    type: 'services',
+    tier: 'pro',
+  });
+  assert.equal(servicesOrder.type, 'services');
+  assert.equal(servicesOrder.amountCents, 1999);
 });

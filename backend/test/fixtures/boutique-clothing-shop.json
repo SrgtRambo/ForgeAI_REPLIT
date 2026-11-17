@@ -1,0 +1,20 @@
+{
+  "businessType": "retail",
+  "businessSummary": "A boutique clothing shop selling curated women's apparel, accessories, and locally made jewelry.",
+  "audience": "Shoppers looking for stylish, curated clothing and gifts in a neighborhood setting.",
+  "primaryAction": "contact",
+  "needs": { "team": false, "menu": false, "pricing": false, "gallery": true, "booking": false, "testimonials": true, "stats": false, "faq": true, "process": false },
+  "reasons": { "team": "The customer did not describe staff who should be shown; the products are the focus, so no team section." },
+  "tone": ["stylish", "approachable"],
+  "palette": { "bg": "#ffffff", "surface": "#faf7f5", "ink": "#333333", "muted": "#5a5a5a", "brand": "#c27ba0", "accent": "#e0b38e", "rationale": "Mauve and soft neutrals feel boutique and feminine without being generic pink." },
+  "fonts": { "display": "warm-serif", "body": "Source Sans 3" },
+  "density": "airy",
+  "radius": "round",
+  "imageStyle": "bright",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "clothing boutique interior with dresses on rack", "aspect": "landscape", "alt": "Boutique clothing store interior with apparel racks" },
+    { "id": "gallery-1", "slot": "gallery-1", "query": "women's fashion flat lay accessories jewelry", "aspect": "square", "alt": "Flat lay of clothing and jewelry accessories" },
+    { "id": "gallery-2", "slot": "gallery-2", "query": "boutique storefront window display", "aspect": "portrait", "alt": "Boutique storefront window display" }
+  ],
+  "unknowns": ["What is the street address?", "What are the opening hours?", "Do they offer alterations or styling appointments?", "Which local designers do they carry?"]
+}

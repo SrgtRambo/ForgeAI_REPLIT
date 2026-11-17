@@ -69,6 +69,7 @@ async function planProject({ chat, model, prompt, type, tier }) {
           'You are the lead architect at Forge AI, a studio that builds bespoke software for one specific business. ' +
           'Plan the project as JSON only: {"name": string, "summary": string, "contract": string, "files": [{"path": string, "purpose": string}]}. ' +
           '"contract" is the shared interface every file must follow: element ids, CSS class names, module exports, data shapes, storage keys, brand colors and fonts. ' +
+          'For websites, restaurants, and service apps, the contract must define the team/chef roster data shape, portrait image URLs, interactive booking dialog IDs, and localStorage keys. ' +
           `Use at most ${maxFiles} files, relative paths with forward slashes, and always include: ${archetype.requiredFiles.join(', ')}. ` +
           'Do not plan README.md' + (type === 'software' ? '.' : ' or package.json; Forge adds them.'),
       },
@@ -94,7 +95,8 @@ async function writeFile({ chat, model, prompt, type, tier, plan, file }) {
       role: 'system',
       content:
         'You write exactly one file of a multi-file project. Reply with ONLY the raw file contents: ' +
-        'no Markdown code fences, no explanations before or after. The file must be complete, valid, and consistent with the shared contract and the other files.',
+        'no Markdown code fences, no explanations before or after. The file must be complete, valid, and consistent with the shared contract and the other files. ' +
+        'Never emit placeholder comments (e.g. /* TODO */) or truncated ellipses; implement every function, style rule, and UI element in full.',
     },
     {
       role: 'user',

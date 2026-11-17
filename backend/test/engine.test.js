@@ -65,3 +65,26 @@ test('the zip contains every file inside one project folder', async () => {
   assert.equal(await zip.file('paws-salon/index.html').async('string'), '<p>x</p>');
   assert.equal(await zip.file('paws-salon/data/sample.csv').async('string'), 'a,b\n');
 });
+
+test('restaurant archetype passes culinary and staff guidelines to planner and file writer', async () => {
+  const { chat, calls } = fakeChat();
+  const project = await generateProject({
+    chat,
+    model: 'm',
+    prompt: 'A farm-to-table bistro with head chef tastings and table reservations',
+    type: 'restaurant',
+    tier: 'standard',
+  });
+  // Check the planning prompt received the chef and Unsplash photo guidelines
+  const planMessage = calls[0].messages[1].content;
+  assert.ok(planMessage.includes('Chef'), 'plan prompt mentions chefs');
+  assert.ok(planMessage.includes('Unsplash'), 'plan prompt includes photo CDN guidance');
+  assert.ok(planMessage.includes('Linkable'), 'plan prompt includes linkable staff guidance');
+
+  // Check the file writer prompt also received the guidelines
+  const writeMessage = calls[1].messages[1].content;
+  assert.ok(writeMessage.includes('Chef'));
+  assert.ok(writeMessage.includes('Unsplash'));
+
+  assert.deepEqual(Object.keys(project.files).sort(), ['README.md', 'app.js', 'index.html', 'package.json', 'styles.css']);
+});

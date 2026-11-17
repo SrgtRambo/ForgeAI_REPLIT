@@ -1,0 +1,20 @@
+{
+  "businessType": "nonprofit",
+  "businessSummary": "A community food bank collecting and distributing groceries to families facing food insecurity.",
+  "audience": "Donors, volunteers, and families in need of food assistance.",
+  "primaryAction": "contact",
+  "needs": { "team": false, "menu": false, "pricing": false, "gallery": true, "booking": false, "testimonials": true, "stats": true, "faq": true, "process": true },
+  "reasons": { "team": "The customer did not describe staff to showcase; impact stats and volunteer stories matter more." },
+  "tone": ["hopeful", "direct"],
+  "palette": { "bg": "#ffffff", "surface": "#f0f7f0", "ink": "#1b3a2a", "muted": "#5a7a5a", "brand": "#2e7d4c", "accent": "#e8a83c", "rationale": "Green signals growth, fresh food, and community health; amber accent highlights donation and volunteer calls to action." },
+  "fonts": { "display": "refined-sans", "body": "Manrope" },
+  "density": "regular",
+  "radius": "soft",
+  "imageStyle": "natural",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "volunteers sorting food boxes in warehouse", "aspect": "landscape", "alt": "Volunteers sorting donated food boxes" },
+    { "id": "gallery-1", "slot": "gallery-1", "query": "fresh produce fruits vegetables market", "aspect": "square", "alt": "Fresh fruits and vegetables" },
+    { "id": "gallery-2", "slot": "gallery-2", "query": "family receiving groceries at food bank", "aspect": "landscape", "alt": "Family carrying groceries from food bank" }
+  ],
+  "unknowns": ["What is the street address and distribution hours?", "Do they accept food drop-offs or only monetary donations?", "How can someone sign up to volunteer?", "Do they deliver to homebound seniors?"]
+}

@@ -34,7 +34,8 @@ export function createApp({ config, db, stripe, jobs }) {
   });
 
   // Stripe signs the exact raw bytes, so this route must run before express.json().
-  app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '1mb' }), async (req, res) => {
+  const rawJson = express.raw({ type: 'application/json', limit: '1mb' });
+  const handleStripeWebhook = async (req, res) => {
     if (!stripe) return res.status(503).json({ error: 'Payments are not configured.' });
     let event;
     try {
@@ -68,7 +69,10 @@ export function createApp({ config, db, stripe, jobs }) {
       console.error('[webhook] failed', err);
       res.status(500).json({ error: 'Webhook processing failed.' });
     }
-  });
+  };
+
+  app.post('/api/stripe/webhook', rawJson, handleStripeWebhook);
+  app.post('/webhook', rawJson, handleStripeWebhook);
 
   app.use(express.json({ limit: '64kb' }));
 
@@ -126,6 +130,7 @@ export function createApp({ config, db, stripe, jobs }) {
       const tier = TIERS[order.tier];
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
+        managed_payments: { enabled: false },
         customer_email: req.user.email,
         client_reference_id: purchase.id,
         line_items: [
@@ -242,6 +247,18 @@ async function main() {
   app.listen(config.port, async () => {
     console.log(`Forge AI backend listening on ${config.baseUrl}`);
     if (!stripe) console.log('Payments are off (add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to turn them on).');
+
+    // Ensure storage bucket exists
+    try {
+      const { data: buckets } = await db.storage.listBuckets();
+      if (!buckets?.some((b) => b.name === config.storageBucket)) {
+        await db.storage.createBucket(config.storageBucket, { public: false });
+        console.log(`[storage] Created bucket "${config.storageBucket}"`);
+      }
+    } catch (e) {
+      console.warn('[storage] bucket check:', e.message);
+    }
+
     const resumed = await jobs.recover().catch((err) => (console.error('[jobs] recover failed', err), 0));
     if (resumed) console.log(`Resumed ${resumed} unfinished job(s).`);
   });

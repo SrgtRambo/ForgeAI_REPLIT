@@ -1,0 +1,20 @@
+{
+  "businessType": "fitness",
+  "businessSummary": "A yoga studio offering daily classes, workshops, and private sessions for beginners and advanced students.",
+  "audience": "Adults seeking yoga for fitness, stress relief, and community in the neighborhood.",
+  "primaryAction": "book",
+  "needs": { "team": true, "menu": false, "pricing": true, "gallery": false, "booking": true, "testimonials": true, "stats": false, "faq": true, "process": false },
+  "reasons": { "team": "Students want to know the instructors who will lead their classes." },
+  "tone": ["calm", "welcoming"],
+  "palette": { "bg": "#ffffff", "surface": "#f4f1f7", "ink": "#3a2a4a", "muted": "#5a4a5a", "brand": "#7c5c9a", "accent": "#c9a0dc", "rationale": "Soft purple and lavender feel calm and wellness-oriented for a yoga studio." },
+  "fonts": { "display": "refined-sans", "body": "Manrope" },
+  "density": "regular",
+  "radius": "round",
+  "imageStyle": "warm",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "yoga studio with mats and natural light", "aspect": "landscape", "alt": "Bright yoga studio with mats laid out" },
+    { "id": "team-1", "slot": "team-1", "query": "yoga instructor demonstrating pose", "aspect": "portrait", "alt": "Yoga instructor in a pose" },
+    { "id": "team-2", "slot": "team-2", "query": "yoga instructor assisting student", "aspect": "portrait", "alt": "Yoga instructor helping a student" }
+  ],
+  "unknowns": ["What is the studio address?", "Do they offer class packages or drop-in rates?", "Are beginner or intro workshops available?", "Is there online or livestream class access?"]
+}

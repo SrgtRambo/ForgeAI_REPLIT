@@ -2,9 +2,10 @@
 
 /** Removes a single surrounding Markdown code fence, if the model added one. */
 export function stripCodeFence(text) {
-  const trimmed = String(text ?? '').trim();
-  const match = trimmed.match(/^```[\w.+-]*[ \t]*\r?\n([\s\S]*?)\r?\n?```$/);
-  return match ? match[1] : trimmed;
+  const str = String(text ?? '');
+  const match = str.match(/^\s*```[\w.+-]*[ \t]*\r?\n([\s\S]*?)\r?\n?```\s*$/);
+  if (match) return match[1];
+  return str.replace(/^\s*```[\w.+-]*[ \t]*\r?\n/, '').replace(/\r?\n?```\s*$/, '');
 }
 
 /** Parses the first JSON object in a model reply, tolerating fences and stray prose. */

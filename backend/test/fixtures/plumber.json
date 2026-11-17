@@ -1,0 +1,20 @@
+{
+  "businessType": "service",
+  "businessSummary": "A residential plumbing service offering leak repairs, fixture installation, and emergency call-outs for homeowners.",
+  "audience": "Homeowners and property managers in the metro area needing reliable plumbing repairs.",
+  "primaryAction": "contact",
+  "needs": { "team": true, "menu": false, "pricing": false, "gallery": false, "booking": false, "testimonials": true, "stats": true, "faq": true, "process": false },
+  "reasons": { "team": "The customer describes plumbers who visit customer homes, so showing the team builds trust." },
+  "tone": ["friendly", "direct"],
+  "palette": { "bg": "#ffffff", "surface": "#f2f6f8", "ink": "#0f2a3a", "muted": "#4a6a7a", "brand": "#0066cc", "accent": "#ff9900", "rationale": "Blue family signals trust and reliability for trades; orange accent draws attention to the contact button." },
+  "fonts": { "display": "modern-grotesk", "body": "Inter" },
+  "density": "regular",
+  "radius": "round",
+  "imageStyle": "natural",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "plumber fixing a leaky pipe under sink", "aspect": "landscape", "alt": "Plumber repairing a pipe under a kitchen sink" },
+    { "id": "team-1", "slot": "team-1", "query": "plumber in uniform with toolbox", "aspect": "portrait", "alt": "Plumber standing with tools" },
+    { "id": "team-2", "slot": "team-2", "query": "plumber welding a pipe", "aspect": "portrait", "alt": "Second plumber at work" }
+  ],
+  "unknowns": ["What towns or neighborhoods do they serve?", "Do they offer 24-hour emergency service?", "Are prices flat-rate or hourly?", "Is the business licensed and insured?"]
+}

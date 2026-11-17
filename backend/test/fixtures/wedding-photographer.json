@@ -1,0 +1,21 @@
+{
+  "businessType": "creative",
+  "businessSummary": "A wedding photographer covering ceremonies and receptions with a natural, documentary style.",
+  "audience": "Engaged couples planning weddings and looking for a photographer.",
+  "primaryAction": "contact",
+  "needs": { "team": false, "menu": false, "pricing": false, "gallery": true, "booking": false, "testimonials": true, "stats": false, "faq": true, "process": false },
+  "reasons": { "team": "A single photographer is the face of the business; a gallery of real wedding photos matters more than a staff roster." },
+  "tone": ["romantic", "warm"],
+  "palette": { "bg": "#ffffff", "surface": "#fdfaf5", "ink": "#4a3a33", "muted": "#6a5a52", "brand": "#b56576", "accent": "#d4a5a5", "rationale": "Soft mauve and cream feel romantic and warm for wedding photography; ink is a gentle brown rather than harsh black." },
+  "fonts": { "display": "classic-book", "body": "Nunito" },
+  "density": "airy",
+  "radius": "round",
+  "imageStyle": "warm",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "bride and groom holding hands outdoors", "aspect": "landscape", "alt": "Bride and groom holding hands at their wedding" },
+    { "id": "gallery-1", "slot": "gallery-1", "query": "wedding ceremony outdoor garden", "aspect": "square", "alt": "Outdoor wedding ceremony in a garden" },
+    { "id": "gallery-2", "slot": "gallery-2", "query": "wedding reception first dance", "aspect": "landscape", "alt": "Couple first dance at wedding reception" },
+    { "id": "gallery-3", "slot": "gallery-3", "query": "bride detail rings and bouquet", "aspect": "square", "alt": "Wedding rings and bouquet detail shot" }
+  ],
+  "unknowns": ["What regions do they travel to for weddings?", "What is included in each wedding package?", "How many hours of coverage do packages include?", "Is there a second shooter available?"]
+}

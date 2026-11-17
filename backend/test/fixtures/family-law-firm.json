@@ -1,0 +1,20 @@
+{
+  "businessType": "professional",
+  "businessSummary": "A family law firm handling divorce, child custody, and prenuptial agreements with compassionate representation.",
+  "audience": "Individuals and couples navigating separation, custody, and family legal matters.",
+  "primaryAction": "contact",
+  "needs": { "team": true, "menu": false, "pricing": false, "gallery": false, "booking": false, "testimonials": false, "stats": false, "faq": true, "process": true },
+  "reasons": { "team": "Clients want to know the attorneys who will represent them in sensitive family matters." },
+  "tone": ["composed", "empathetic"],
+  "palette": { "bg": "#ffffff", "surface": "#f4f1ee", "ink": "#242424", "muted": "#7a6e68", "brand": "#5c4033", "accent": "#b98a5c", "rationale": "Warm browns and neutrals feel grounded, trustworthy, and appropriate for sensitive family law." },
+  "fonts": { "display": "classic-book", "body": "Nunito" },
+  "density": "regular",
+  "radius": "soft",
+  "imageStyle": "moody",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "law office library with books and desk", "aspect": "landscape", "alt": "Quiet law office with bookshelves and a desk" },
+    { "id": "team-1", "slot": "team-1", "query": "female attorney in office", "aspect": "portrait", "alt": "Family law attorney at her desk" },
+    { "id": "team-2", "slot": "team-2", "query": "male attorney in suit", "aspect": "portrait", "alt": "Family law attorney standing" }
+  ],
+  "unknowns": ["What towns or counties do they serve?", "Do they offer free initial consultations?", "What are the attorney credentials and years of experience?", "Do they handle same-sex divorce and custody?"]
+}

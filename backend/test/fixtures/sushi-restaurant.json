@@ -1,0 +1,20 @@
+{
+  "businessType": "restaurant",
+  "businessSummary": "A sushi restaurant serving fresh nigiri, maki, and sashimi with counter seating and takeout.",
+  "audience": "Lunch and dinner diners who want fresh Japanese fish, including office workers and date-night couples.",
+  "primaryAction": "book",
+  "needs": { "team": true, "menu": true, "pricing": false, "gallery": true, "booking": true, "testimonials": false, "stats": false, "faq": true, "process": false },
+  "reasons": { "team": "The customer mentions chefs who should be shown to visitors, so a team section is warranted." },
+  "tone": ["refined", "minimal"],
+  "palette": { "bg": "#ffffff", "surface": "#f7f5f2", "ink": "#1a1a1a", "muted": "#6b6b6b", "brand": "#8b0000", "accent": "#d4a373", "rationale": "Deep red brand evokes soy sauce and elegance; warm neutral surface feels clean and Japanese." },
+  "fonts": { "display": "editorial-serif", "body": "Inter" },
+  "density": "regular",
+  "radius": "soft",
+  "imageStyle": "natural",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "sushi chef plating nigiri in kitchen", "aspect": "landscape", "alt": "Sushi chef arranging fresh nigiri on a wooden board" },
+    { "id": "gallery-1", "slot": "gallery-1", "query": "sushi platter assortment maki sashimi", "aspect": "square", "alt": "Assorted sushi platter with maki and sashimi" },
+    { "id": "team-1", "slot": "team-1", "query": "sushi chef behind counter", "aspect": "portrait", "alt": "Head sushi chef at the counter" }
+  ],
+  "unknowns": ["What are the opening hours?", "Is there a specific address or neighborhood?", "What is the price range per person?", "Do they take reservations or walk-ins only?"]
+}

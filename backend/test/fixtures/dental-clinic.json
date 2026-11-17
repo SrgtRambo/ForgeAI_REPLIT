@@ -1,0 +1,20 @@
+{
+  "businessType": "health",
+  "businessSummary": "A general dental clinic offering cleanings, fillings, crowns, and cosmetic dentistry for families.",
+  "audience": "Families and individuals seeking routine and cosmetic dental care in the local area.",
+  "primaryAction": "book",
+  "needs": { "team": true, "menu": false, "pricing": false, "gallery": false, "booking": true, "testimonials": true, "stats": false, "faq": true, "process": false },
+  "reasons": { "team": "Patients want to see the dentists and hygienists who will treat them." },
+  "tone": ["clean", "reassuring"],
+  "palette": { "bg": "#ffffff", "surface": "#f0f7ff", "ink": "#0b3d4d", "muted": "#3a6a7a", "brand": "#0e7c86", "accent": "#e8a83c", "rationale": "Teal and soft blue suggest cleanliness and calm for a dental environment; warm accent adds approachability." },
+  "fonts": { "display": "humanist-sans", "body": "Lora" },
+  "density": "compact",
+  "radius": "round",
+  "imageStyle": "bright",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "modern dental clinic reception desk", "aspect": "landscape", "alt": "Clean dental clinic reception area" },
+    { "id": "team-1", "slot": "team-1", "query": "dentist in uniform smiling", "aspect": "portrait", "alt": "Dentist smiling in clinic" },
+    { "id": "team-2", "slot": "team-2", "query": "dental hygienist with patient", "aspect": "portrait", "alt": "Dental hygienist working with a patient" }
+  ],
+  "unknowns": ["Do they accept new patients?", "What insurance plans do they take?", "Are evening or weekend appointments available?", "Do they offer pediatric dentistry?"]
+}

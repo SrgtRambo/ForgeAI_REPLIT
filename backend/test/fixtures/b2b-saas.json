@@ -1,0 +1,19 @@
+{
+  "businessType": "tech",
+  "businessSummary": "A B2B SaaS platform that helps logistics companies track shipments and manage fleet maintenance.",
+  "audience": "Logistics operators, fleet managers, and supply chain teams in mid-size transportation companies.",
+  "primaryAction": "apply",
+  "needs": { "team": false, "menu": false, "pricing": true, "gallery": false, "booking": false, "testimonials": true, "stats": true, "faq": true, "process": true },
+  "reasons": { "team": "The customer is a software product; the team is not the customer-facing draw, so no team section." },
+  "tone": ["precise", "modern"],
+  "palette": { "bg": "#ffffff", "surface": "#f8fafc", "ink": "#0f172a", "muted": "#64748b", "brand": "#0369a1", "accent": "#f59e0b", "rationale": "Slate and blue feel technical and trustworthy for B2B software; amber accent highlights calls to action." },
+  "fonts": { "display": "modern-grotesk", "body": "Inter" },
+  "density": "compact",
+  "radius": "sharp",
+  "imageStyle": "moody",
+  "imageSlots": [
+    { "id": "hero-1", "slot": "hero", "query": "logistics dashboard on multiple monitors", "aspect": "landscape", "alt": "Logistics tracking dashboard on computer screens" },
+    { "id": "gallery-1", "slot": "gallery-1", "query": "truck fleet depot at sunset", "aspect": "landscape", "alt": "Fleet of delivery trucks at a depot" }
+  ],
+  "unknowns": ["What is the pricing model—per vehicle or per shipment?", "Do they offer a free trial or demo?", "Which regions or countries do they support?", "What integrations do they offer with existing TMS software?"]
+}
