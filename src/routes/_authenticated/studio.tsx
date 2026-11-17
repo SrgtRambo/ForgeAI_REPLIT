@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { createForgeCloud, loadForgeProjects, type SyncState } from "@/lib/forge-cloud";
 import { profileQueryOptions } from "@/lib/profile";
+import { formatStudioLoadError } from "@/lib/studio-load-error";
 
 const FORGE_VERSION = "4";
 const FORGE_SCRIPTS = ["architect.js", "ai-provider.js", "generator.js", "testing.js", "sample-projects.js", "app.js"];
@@ -77,7 +78,8 @@ function StudioPage() {
       setStatus("ready");
     })().catch((error: unknown) => {
       if (cancelled) return;
-      setLoadError(error instanceof Error ? error.message : String(error));
+      console.error("[forge] studio failed to load", error);
+      setLoadError(formatStudioLoadError(error));
       setStatus("error");
     });
 
