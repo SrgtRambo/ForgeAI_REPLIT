@@ -1,7 +1,14 @@
-# Roadmap
+# Forge AI status
 
-- [x] Read Forge AI source from GitHub (SrgtRambo/vs-code-connector)
-- [x] Enable Lovable Cloud backend
-- [x] Email/password sign in + user profiles (name, company)
-- [x] Forge AI: AI builds custom software for companies; save projects per user (secure, private)
-- [ ] Enable Stripe payments — blocked: built-in Stripe needs a paid plan (or user's own Stripe key); also need what customers pay for
+## Replit setup
+
+- [x] Use Replit-managed customer sign-in.
+- [x] Store Forge profiles and projects in Replit PostgreSQL.
+- [x] Keep OpenRouter calls on the server and connect them to Forge AI.
+- [x] Replace prior external account and database runtime integrations.
+- [x] Keep the website generator API, usage limits, QA pipeline, and private ZIP delivery.
+
+## Optional follow-up
+
+- [ ] Configure Stripe keys and verify checkout/webhook flows before enabling paid generation.
+- [ ] Run the dependency security audit and resolve remaining high-severity findings.

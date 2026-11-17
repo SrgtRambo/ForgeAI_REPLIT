@@ -21,13 +21,12 @@ function AuthShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ForgeSignInPage({ redirect }: { redirect?: string }) {
+export function ForgeSignInPage({ redirect }: { redirect: string | undefined }) {
   const destination = `${basePath}${safeRedirect(redirect)}`;
   return (
     <AuthShell>
       <SignIn
-        routing="path"
-        path={`${basePath}/sign-in`}
+        routing="hash"
         signUpUrl={`${basePath}/sign-up`}
         forceRedirectUrl={destination}
       />
@@ -35,13 +34,12 @@ export function ForgeSignInPage({ redirect }: { redirect?: string }) {
   );
 }
 
-export function ForgeSignUpPage({ redirect }: { redirect?: string }) {
+export function ForgeSignUpPage({ redirect }: { redirect: string | undefined }) {
   const destination = `${basePath}${safeRedirect(redirect)}`;
   return (
     <AuthShell>
       <SignUp
-        routing="path"
-        path={`${basePath}/sign-up`}
+        routing="hash"
         signInUrl={`${basePath}/sign-in`}
         forceRedirectUrl={destination}
       />

@@ -18,7 +18,7 @@ export const clerkAppearance = {
   options: {
     logoPlacement: "inside" as const,
     logoLinkUrl: "/",
-    logoImageUrl: `${typeof window === "undefined" ? "" : window.location.origin}/logo.svg`,
+    logoImageUrl: "/logo.svg",
   },
   elements: {
     rootBox: "w-full flex justify-center",

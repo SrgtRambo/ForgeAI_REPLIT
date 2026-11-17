@@ -1,77 +1,56 @@
-# Forge AI backend (generation engine)
+# Forge AI backend
 
-A Node.js service used by Forge AI's in-app Website Builder. It also contains optional paid software delivery:
+The Express service powers Forge AI's in-app website generator and optional paid software delivery. It runs alongside the TanStack web app on port 3001.
 
-1. A signed-in Forge AI customer describes a business in the Website Builder.
-2. The service validates the Supabase access token and sends a bounded request to OpenRouter.
-3. Forge builds the site files and runs browser checks when Chromium is installed.
-4. The app saves the result to the customer's existing private Forge project list and can download a ZIP.
-5. Optional Stripe checkout and background software delivery remain off until Stripe is configured.
+## Request flow
 
-## What changed from the first version
+1. A signed-in Forge customer sends a same-origin request with their Clerk session cookie.
+2. The server verifies the customer session and validates a bounded generation request.
+3. The site pipeline calls OpenRouter, builds the files, and runs browser/accessibility checks when Chromium is available.
+4. Generated sites return to the authenticated Forge workspace. Optional paid projects are queued and stored privately in Replit PostgreSQL.
 
-| Before | Now |
-| --- | --- |
-| Whole project in one AI reply capped at 4096 tokens, so apps were cut off | Plan first, then one call per file, with automatic "continue" calls if a file is still cut off |
-| `npm install` + `npm run build` inside the webhook (60–90 s, Stripe gives up after ~20 s) | Webhook replies immediately; work runs in a job queue that resumes after restarts |
-| `express.json()` ran before the webhook, so Stripe signature checks always failed | Webhook reads the raw body |
-| Anyone could fetch any download by id | Downloads require sign-in and only work for your own purchases |
-| AI could write any path (e.g. `../../etc`) | Paths are checked; only safe file types, max size per file |
-| One generic prompt | Seven presets: `website`, `restaurant`, `services`, `saas`, `social`, `spreadsheet`, `software` |
-| 24-hour link saved in the database (goes stale) | New link created on each download |
-| Stripe metadata carried the whole prompt (500-char limit) | Only ids go to Stripe |
+## Run and test
 
-## Run it (Replit or VS Code)
+On Replit, the backend workflow starts this service. For local development:
 
-```bash
-cd backend
-npm ci
-cp .env.example .env    # on Replit, add these as Secrets instead
-npm run dev             # http://localhost:3001/health
-npm test                # node --test test/*.test.js
+```sh
+npm install
+cp .env.example .env
+npm run dev
+npm test
 ```
 
-### Secrets you need
+The test command is `node --test test/*.test.js`.
 
-| Name | Where to get it |
+## Configuration
+
+| Variable | Purpose |
 | --- | --- |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Use the same Supabase project as Forge AI. The website builder saves through the signed-in app; run `sql/schema.sql` only for optional purchases and downloads. |
-| `OPENROUTER_API_KEY` | openrouter.ai/keys |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe dashboard (optional at first) |
+| `DATABASE_URL` | PostgreSQL connection string; Replit supplies this automatically. |
+| `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Replit-managed Clerk customer authentication. |
+| `OPENROUTER_API_KEY` | Server-side model access. |
+| `ALLOW_SITE_GENERATION` | Set to `true` to enable website generation. |
+| `ALLOW_FREE_GENERATION` | Set to `true` to enable the optional free-project queue. |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Optional payment checkout and webhook support. |
 
-Website generation is controlled by `ALLOW_SITE_GENERATION`; it is rate-limited to one build per minute and three per day per user, with a 20-build daily service cap. Payments and free software generation stay off unless explicitly configured.
+See `.env.example` for additional model and rate-limit settings. Keep all private keys in Replit Secrets or a local, uncommitted `.env` file.
 
-### Stripe webhook
-
-Point a Stripe webhook at `https://YOUR-SERVER/api/stripe/webhook` with the events
-`checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.expired`.
-Locally: `stripe listen --forward-to localhost:3001/api/stripe/webhook`.
+The default site limits are one build per minute and three per day per customer, with an overall daily service cap. Site-generation requests have strict validation, body-size limits, and an OpenRouter timeout.
 
 ## API
 
-All `/api/*` routes except the webhook and catalog need `Authorization: Bearer <supabase access token>`.
+The backend trusts Clerk's server-verified session cookie; it does not accept client-supplied bearer tokens.
 
-| Method | Path | Body / result |
+| Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/health` | `{ ok, payments, freeGeneration, siteGeneration, jobs }` |
-| GET | `/api/catalog` | Types and tiers with prices |
-| POST | `/api/site/generate` | `{ businessName, industry?, location?, description, brandColors? }` → generated files and QA summary |
-| POST | `/api/checkout` | `{ prompt, type, tier }` → `{ url, purchaseId }` (send the customer to `url`) |
-| POST | `/api/generate-free` | Same body, only when `ALLOW_FREE_GENERATION=true` → `{ purchaseId }` |
-| GET | `/api/purchases` | Your purchases with `status` and `progress` |
-| GET | `/api/purchases/:id` | One purchase |
-| GET | `/api/purchases/:id/download` | `{ url }` once `status` is `ready` |
-| POST | `/api/stripe/webhook` | Stripe only |
+| GET | `/health` | Service and feature status |
+| GET | `/api/catalog` | Available generation types and tiers |
+| POST | `/api/site/generate` | Generate a website from validated business details |
+| POST | `/api/checkout` | Start optional Stripe checkout |
+| POST | `/api/generate-free` | Queue a free project when enabled |
+| GET | `/api/purchases` | List the signed-in customer's purchases |
+| GET | `/api/purchases/:id` | Read one of the customer's purchases |
+| GET | `/api/purchases/:id/download` | Stream the customer's private ZIP when ready |
+| POST | `/api/stripe/webhook` | Receive signed Stripe events |
 
-Purchase status flow: `pending` → `queued` → `processing` → `ready` (or `failed` / `cancelled`).
-
-## Prices and limits
-
-Set in `src/pricing.js`: Standard $9.99 (up to 8 files), Pro $19.99 (up to 16 files).
-Models per tier: `MODEL_STANDARD`, `MODEL_PRO` in `.env`. The Website Builder uses `MODEL_ANALYSIS` and `MODEL_COPY`.
-
-## Hosting notes
-
-Runs as one long-lived Node process (Replit Deployments "Reserved VM", Railway, Render, Fly.io).
-It is not suited to serverless/edge hosting because jobs run in the background after the reply.
-Run a single instance: the job queue lives in memory and resumes unfinished jobs on start.
+Purchase status moves through `pending`, `queued`, `processing`, and `ready` (or `failed` / `cancelled`). The background queue is in memory and recovers unfinished database jobs on startup, so run a single backend instance.

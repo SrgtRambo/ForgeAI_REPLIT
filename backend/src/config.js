@@ -14,11 +14,12 @@ function readInt(name, fallback, min, max) {
 export function loadConfig() {
   const port = readInt('PORT', 3001, 1, 65535);
   const baseUrl = read('BASE_URL', `http://localhost:${port}`).replace(/\/$/, '');
+  const frontendUrl = read('FRONTEND_URL', 'http://localhost:5000').replace(/\/$/, '');
   const config = {
     port,
     baseUrl,
-    frontendUrl: read('FRONTEND_URL', baseUrl).replace(/\/$/, ''),
-    corsOrigins: read('CORS_ORIGINS', 'http://localhost:8080')
+    frontendUrl,
+    corsOrigins: read('CORS_ORIGINS', frontendUrl)
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),

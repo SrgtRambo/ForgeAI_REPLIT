@@ -7,7 +7,7 @@ export async function countAiRequests(userId: string, since: Date) {
     where user_id = ${userId}
       and created_at > ${since}
   `;
-  return Number(row?.count ?? 0);
+  return Number(row?.["count"] ?? 0);
 }
 
 export async function claimAiRequest(userId: string, perMinute: number, perDay: number) {
@@ -20,8 +20,8 @@ export async function claimAiRequest(userId: string, perMinute: number, perDay: 
       from ai_requests
       where user_id = ${userId}
     `;
-    const minuteCount = Number(counts?.minute_count ?? 0);
-    const dayCount = Number(counts?.day_count ?? 0);
+    const minuteCount = Number(counts?.["minute_count"] ?? 0);
+    const dayCount = Number(counts?.["day_count"] ?? 0);
 
     if (minuteCount >= perMinute) return { allowed: false, reason: "minute", usedToday: dayCount };
     if (dayCount >= perDay) return { allowed: false, reason: "day", usedToday: dayCount };

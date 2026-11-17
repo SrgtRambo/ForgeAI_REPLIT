@@ -1,24 +1,43 @@
-# Forge Folio Payments
+# Forge AI
 
-Build the backend to forge AI with user frienddly sign in, data management, security, etc. https://github.com/SrgtRambo/vs-code-connector.git
+Forge AI lets customers create software and websites from a private studio. The app uses TanStack Start for the web experience, Replit-managed Clerk for customer accounts, Replit PostgreSQL for user data, and OpenRouter for server-side AI requests.
 
-This project was built with [Lovable](https://lovable.dev).
+## Running on Replit
 
-## Build with Lovable
+The workspace starts the web app and backend as separate workflows:
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/d614b143-3f9e-4ec0-a77c-27fb6c4f425f).
+- Web app: `bun run dev -- --host 0.0.0.0 --port 5000`
+- Backend: `npm --prefix backend run dev`
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Replit supplies `DATABASE_URL` for its PostgreSQL database. The schema source is `drizzle/schema.ts`; migrations are generated in `drizzle/migrations/`. Customer sign-in is managed through Replit's Auth pane. The backend also needs the `OPENROUTER_API_KEY` secret. Do not put private keys in browser code or commit them.
 
-## Development
+Account and project records from the previous workspace are not copied automatically. New customers create a Forge account; the app stores new projects in Replit PostgreSQL.
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Local development
+
+Install the root packages with Bun and backend packages with npm:
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun install
+npm --prefix backend install
+bun run dev
+npm --prefix backend run dev
 ```
+
+For local use, configure `DATABASE_URL`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `OPENROUTER_API_KEY` in the environment. Optional Stripe checkout requires `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. See `backend/.env.example` for backend settings.
+
+## Checks
+
+```sh
+bun test
+bun run build
+npm --prefix backend test
+```
+
+## Data and AI boundaries
+
+- Customer authentication is handled by Clerk session cookies; browser code does not pass bearer tokens.
+- Project and profile queries are scoped to the signed-in Clerk user.
+- OpenRouter credentials stay on the server.
+- Site generation is disabled unless `ALLOW_SITE_GENERATION=true`; per-user and global limits are configurable in `backend/.env.example`.
+- Stripe checkout is optional. Purchases and private project archives use the Replit PostgreSQL database when Stripe is configured.

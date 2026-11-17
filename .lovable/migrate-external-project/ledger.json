@@ -1,8 +1,0 @@
-[
-  {"capability": "code", "source": "vanilla JS app (index.html, app.js, architect.js, generator.js, testing.js, sample-projects.js, ai-provider.js)", "outcome": "ported into public/forge and loaded by the signed-in studio page", "status": "verified", "next_action": "none"},
-  {"capability": "auth", "source": "none (local single-user app)", "outcome": "Lovable Cloud email/password accounts with profiles", "status": "implemented", "next_action": "user signs up in preview to verify end to end"},
-  {"capability": "records", "source": "browser localStorage on the user's Mac", "outcome": "forge_projects table per user; old projects can be re-imported with Open project ZIP/folder", "status": "implemented", "next_action": "none (no server-side records existed)"},
-  {"capability": "ai provider", "source": "local Ollama via loopback Node proxy", "outcome": "Lovable AI through authenticated /api/forge/chat with per-user limits", "status": "verified (direct gateway call)", "next_action": "verify through studio once signed in"},
-  {"capability": "local Node server", "source": "server.js + Start Forge AI.command", "outcome": "replaced by hosted app", "status": "replaced", "next_action": "none"},
-  {"capability": "payments", "source": "none", "outcome": "Stripe requested", "status": "blocked", "next_action": "workspace needs a paid plan for built-in Stripe, or user chooses own Stripe key"}
-]

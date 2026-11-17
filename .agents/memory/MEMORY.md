@@ -1,3 +1,4 @@
 - [Bun dependency overrides](bun-dependency-overrides.md) — Bun 1.3 here does not support nested overrides; verify actual resolved packages after installs.
 - [Vite watcher limits](vite-watcher-exclusions.md) — avoid watching `.cache`, `.local`, and `node_modules` in this workspace to prevent file-descriptor exhaustion.
 - [Preview port leftovers](preview-port-leftovers.md) — if Vite falls back to 5001, check for an orphaned server still holding port 5000.
+- [Drizzle bytea mapping](drizzle-bytea.md) — Drizzle ORM 0.45 does not export a PostgreSQL `bytea` builder; define it with `customType`.

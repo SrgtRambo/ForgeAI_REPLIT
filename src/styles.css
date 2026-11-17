@@ -5,9 +5,11 @@
  *   build resolves @import from the filesystem. Load those with a <link> in the head() of
  *   src/routes/__root.tsx and name the family in a --font-* token in @theme inline below.
  */
+@layer theme, base, clerk, components, utilities;
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "@clerk/themes/shadcn.css";
 
 @custom-variant dark (&:is(.dark *));
 

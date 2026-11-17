@@ -3,6 +3,7 @@ import { auth } from "@clerk/tanstack-react-start/server";
 
 import { FORGE_AI_LIMITS, ForgeRequestError, validateForgeChat } from "./forge-ai-rules";
 import { claimAiRequest, countAiRequests } from "@/server/ai-usage";
+import { readJsonBody, RequestBodyError } from "@/server/request-body";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = process.env["OPENROUTER_MODEL"] || "google/gemini-2.5-flash";
@@ -54,11 +55,11 @@ export async function handleForgeChat(request: Request) {
 
   let validated;
   try {
-    const raw = await request.text();
-    if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) return json(413, { error: "Request is too large.", status: 413 });
-    validated = validateForgeChat(JSON.parse(raw));
+    const body = await readJsonBody(request, MAX_BODY_BYTES);
+    validated = validateForgeChat(body);
   } catch (error) {
     if (error instanceof ForgeRequestError) return json(error.status, { error: error.message, status: error.status });
+    if (error instanceof RequestBodyError) return json(error.status, { error: error.message, status: error.status });
     return json(400, { error: "Request body must be valid JSON.", status: 400 });
   }
 

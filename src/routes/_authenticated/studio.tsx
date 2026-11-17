@@ -52,6 +52,7 @@ function StudioPage() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    const host = hostRef.current;
     let cancelled = false;
     const added: HTMLElement[] = [];
     const link = document.createElement("link");
@@ -68,8 +69,8 @@ function StudioPage() {
         }),
         loadForgeProjects(),
       ]);
-      if (cancelled || !hostRef.current) return;
-      hostRef.current.innerHTML = markup;
+      if (cancelled || !host) return;
+      host.innerHTML = markup;
       window.ForgeCloud = createForgeCloud(projects, (state, message) => setSync({ state, message }));
       for (const file of FORGE_SCRIPTS) {
         if (cancelled) return;
@@ -98,7 +99,7 @@ function StudioPage() {
       window.removeEventListener("beforeunload", warn);
       void window.ForgeCloud?.flush();
       added.forEach((node) => node.remove());
-      if (hostRef.current) hostRef.current.innerHTML = "";
+      if (host) host.innerHTML = "";
       setSlot(null);
     };
   }, [user.id]);

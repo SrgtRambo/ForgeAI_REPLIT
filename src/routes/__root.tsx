@@ -19,7 +19,8 @@ import { clerkAppearance } from "@/components/auth/clerk-appearance";
 import appCss from "../styles.css?url";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+const clerkProxyUrl =
+  import.meta.env["VITE_CLERK_PROXY_URL"] || (import.meta.env.PROD ? "/api/__clerk" : undefined);
 
 function NotFoundComponent() {
   return (
@@ -130,14 +131,14 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const publishableKey =
     typeof window === "undefined"
-      ? undefined
-      : publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+      ? import.meta.env["VITE_CLERK_PUBLISHABLE_KEY"]
+      : publishableKeyFromHost(window.location.hostname, import.meta.env["VITE_CLERK_PUBLISHABLE_KEY"]);
 
   return (
     <ClerkProvider
       publishableKey={publishableKey}
       proxyUrl={clerkProxyUrl}
-      appearance={clerkAppearance}
+      appearance={clerkAppearance as never}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       localization={{

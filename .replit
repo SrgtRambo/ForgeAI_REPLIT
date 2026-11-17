@@ -58,6 +58,4 @@ externalPort = 3000
 [userenv]
 
 [userenv.shared]
-SUPABASE_URL = "https://aibzkrogksvaxzcqnoyk.supabase.co"
-VITE_SUPABASE_URL = "https://aibzkrogksvaxzcqnoyk.supabase.co"
 ALLOW_SITE_GENERATION = "true"
