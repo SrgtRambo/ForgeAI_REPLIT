@@ -4,45 +4,39 @@
 
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createServer } from 'node:http';
 import path from 'node:path';
 import os from 'node:os';
-
-let playwright;
-let axe;
-try {
-  playwright = require('playwright');
-} catch {}
-try {
-  axe = require('axe-core');
-} catch {}
+import { chromium } from 'playwright';
+import axe from 'axe-core';
 
 const BANNED_PATTERNS = /lorem ipsum|click here|unlock|seamless|revolutionary|game changer|\{\{[^}]*\}\}|\[insert[^\]]*\]/i;
 
 const VIEWPORTS = [
   { width: 390, height: 844, label: 'mobile' },
+  { width: 768, height: 1024, label: 'tablet' },
   { width: 1440, height: 900, label: 'desktop' },
 ];
 
 /** Check if Chromium is available for Playwright. */
 export function chromiumAvailable() {
   try {
-    require.resolve('playwright-chromium');
-    return true;
-  } catch {}
-  try {
-    execSync('npx playwright --version', { stdio: 'pipe', timeout: 10000 });
-    return true;
+    return fs.existsSync(chromium.executablePath());
   } catch {}
   return false;
 }
 
 /** Serve a directory of static files on a random localhost port. */
 function serveStatic(dir) {
-  const http = require('http');
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
+    const server = createServer((req, res) => {
       const url = new URL(req.url, `http://localhost`);
-      let filePath = path.join(dir, url.pathname);
+      let filePath = path.resolve(dir, `.${url.pathname}`);
+      if (filePath !== dir && !filePath.startsWith(`${dir}${path.sep}`)) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
       if (filePath === dir) filePath = path.join(dir, 'index.html');
       if (!fs.existsSync(filePath)) {
         res.writeHead(404);
@@ -50,7 +44,7 @@ function serveStatic(dir) {
         return;
       }
       const ext = path.extname(filePath).toLowerCase();
-      const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.xml': 'application/xml', '.txt': 'text/plain', '.json': 'application/json' };
+      const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.xml': 'application/xml', '.txt': 'text/plain', '.json': 'application/json' };
       res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream' });
       fs.createReadStream(filePath).pipe(res);
     });
@@ -74,19 +68,33 @@ export async function runQA({ files, modelCritic, chat, outDir = path.join(os.tm
 
   const tmpDir = fs.mkdtempSync(outDir);
   for (const [filePath, content] of Object.entries(files)) {
-    const fullPath = path.join(tmpDir, filePath);
+    if (path.isAbsolute(filePath) || filePath.split(/[\\/]/).includes('..')) {
+      throw new Error('QA input contains an unsafe file path.');
+    }
+    const fullPath = path.resolve(tmpDir, filePath);
+    if (!fullPath.startsWith(`${tmpDir}${path.sep}`)) {
+      throw new Error('QA input contains an unsafe file path.');
+    }
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
     fs.writeFileSync(fullPath, content);
   }
 
-  if (!chromiumAvailable() || !playwright || !axe) {
-    report.errors.push('Playwright/Chromium or axe-core not available; QA skipped.');
+  if (!chromiumAvailable()) {
+    report.errors.push('Chromium is not installed; browser QA skipped.');
     report.qaStatus = 'skipped';
     return { passed: false, report, screenshots: [], tmpDir };
   }
 
   const { server, port, url } = await serveStatic(tmpDir);
-  const browser = await playwright.chromium.launch({ headless: true });
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+  } catch {
+    server.close();
+    report.errors.push('Chromium could not start; browser QA skipped.');
+    report.qaStatus = 'skipped';
+    return { passed: false, report, screenshots: [], tmpDir };
+  }
 
   try {
     for (const pageSpec of Object.keys(files).filter((f) => f.endsWith('.html'))) {
@@ -99,10 +107,11 @@ export async function runQA({ files, modelCritic, chat, outDir = path.join(os.tm
         const failedRequests = [];
 
         page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+        page.on('pageerror', (error) => consoleErrors.push(error.message));
         page.on('requestfailed', (req) => { failedRequests.push(req.url()); });
 
         await page.setViewportSize({ width: vp.width, height: vp.height });
-        await page.goto(pageUrl, { waitUntil: 'networkidle' });
+        await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 15_000 });
 
         // Screenshot
         const shotPath = path.join(tmpDir, `qa-${pageSpec.replace(/\//g, '-')}-${vp.width}.png`);
@@ -118,7 +127,10 @@ export async function runQA({ files, modelCritic, chat, outDir = path.join(os.tm
 
         // Axe accessibility check
         if (axe) {
-          const axeResult = await axe.run(page, { rules: { 'wcag2a': { enabled: true }, 'wcag2aa': { enabled: true } } });
+          await page.addScriptTag({ content: axe.source });
+          const axeResult = await page.evaluate(() => window.axe.run(document, {
+            runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] },
+          }));
           const serious = axeResult.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
           pageResult.axeViolations.push(...serious.map((v) => `${v.id} (${v.impact}) at ${v.nodes.map((n) => n.target.join(',')).join('; ')}`));
         }
@@ -146,13 +158,13 @@ export async function runQA({ files, modelCritic, chat, outDir = path.join(os.tm
     }
 
     // Gate logic
-    const allOk = report.pages.every((p) =>
+    const allOk = report.errors.length === 0 && report.pages.every((p) =>
       !p.errors.length &&
       !p.overflow &&
       !p.axeViolations.length &&
       !p.bannedText.length
     );
-    const criticOk = report.critic ? Object.values(report.critic.scores || {}).every((s) => s >= 7) : false;
+    const criticOk = !modelCritic || (report.critic && Object.values(report.critic.scores || {}).every((s) => s >= 7));
 
     if (allOk && criticOk) {
       report.qaStatus = 'passed';

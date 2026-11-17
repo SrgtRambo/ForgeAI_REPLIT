@@ -13,6 +13,12 @@ export default defineConfig({
   vite: {
     server: {
       allowedHosts: true,
+      proxy: {
+        "/api/site": {
+          target: "http://127.0.0.1:3001",
+          changeOrigin: true,
+        },
+      },
       watch: {
         ignored: [
           "**/node_modules/**",

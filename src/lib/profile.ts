@@ -8,12 +8,16 @@ export const profileQueryOptions = (userId: string) =>
   queryOptions({
     queryKey: ["profile", userId],
     queryFn: async (): Promise<Profile> => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, company_name")
-        .eq("id", userId)
-        .maybeSingle();
+      const { data, error } = await supabase.auth.getUser();
       if (error) throw error;
-      return data ?? { id: userId, display_name: "", company_name: "" };
+      if (!data.user || data.user.id !== userId) {
+        return { id: userId, display_name: "", company_name: "" };
+      }
+      const metadata = data.user.user_metadata ?? {};
+      return {
+        id: userId,
+        display_name: typeof metadata.display_name === "string" ? metadata.display_name : "",
+        company_name: typeof metadata.company_name === "string" ? metadata.company_name : "",
+      };
     },
   });

@@ -5,6 +5,7 @@
 import { rootVariables } from './design/tokens.js';
 import { SECTION_MODULES } from './sections/index.js';
 import { isValidFontPairing } from './design/fonts.js';
+import { validateSpec } from './spec.js';
 
 const ASSET_IMAGE_DIR = 'assets/images';
 
@@ -26,8 +27,20 @@ function resolveImageUrl(imageId, images) {
   const img = images.find((i) => i.id === imageId);
   if (!img) return '';
   if (img.filePath) return img.filePath;
-  if (img.source === 'url' || img.source === 'upload') return `assets/images/${imageId}.jpg`;
-  return `assets/images/${imageId}.jpg`;
+  return `${ASSET_IMAGE_DIR}/${imageId}.svg`;
+}
+
+function placeholderSvg(image) {
+  const label = esc(image.alt || image.slot || 'Image');
+  return [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-label="' + label + '">',
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e6e0d5"/><stop offset="1" stop-color="#c8d0c8"/></linearGradient></defs>',
+    '<rect width="1200" height="760" fill="url(#g)"/>',
+    '<circle cx="910" cy="180" r="110" fill="#ffffff" fill-opacity=".35"/>',
+    '<path d="M0 610 330 360l210 160 190-220 470 360v100H0z" fill="#66756d" fill-opacity=".28"/>',
+    '<text x="600" y="690" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#26332d">' + label + '</text>',
+    '</svg>',
+  ].join('');
 }
 
 /** Build a single HTML page from a page spec. */
@@ -276,6 +289,10 @@ function checkForbiddenOutput(files) {
 /** Build all site files from a spec. */
 export async function buildSite(spec, images = [], options = {}) {
   const { baseUrl = '' } = options;
+  const validation = validateSpec(spec);
+  if (!validation.ok) {
+    throw new Error(`Invalid site spec: ${validation.errors.slice(0, 8).join('; ')}`);
+  }
   const files = {};
   const usedSections = [];
 
@@ -310,16 +327,17 @@ export async function buildSite(spec, images = [], options = {}) {
     }
   }
   for (const img of images || []) {
-    if (img.filePath) {
-      // Actual image content is set by the caller via options.imageContents.
-    }
-    if (img.id && !files[`assets/images/${img.id}.jpg`]) {
-      files[`assets/images/${img.id}.jpg`] = '// placeholder image'; // replaced by caller with real binary
-    }
+    if (!img.id) continue;
+    const filePath = img.filePath || `${ASSET_IMAGE_DIR}/${img.id}.svg`;
+    const content = options.imageContents?.[img.id] ?? options.imageContents?.[filePath];
+    if (content !== undefined) files[filePath] = content;
+    else if (!img.filePath) files[filePath] = placeholderSvg(img);
   }
   for (const id of referencedImageIds) {
-    if (!files[`assets/images/${id}.jpg`]) {
-      files[`assets/images/${id}.jpg`] = '// placeholder image';
+    const image = (images || []).find((entry) => entry.id === id);
+    const filePath = image?.filePath || `${ASSET_IMAGE_DIR}/${id}.svg`;
+    if (!files[filePath] && !image?.filePath) {
+      files[filePath] = placeholderSvg(image || { id, alt: 'Website image' });
     }
   }
 

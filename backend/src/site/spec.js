@@ -228,19 +228,27 @@ export function validateSpec(spec) {
   }
 
   // --- pages ---
-  if (!Array.isArray(spec.pages) || spec.pages.length === 0) {
-    errors.push('pages must be a non-empty array.');
+  if (!Array.isArray(spec.pages) || spec.pages.length === 0 || spec.pages.length > 8) {
+    errors.push('pages must be a non-empty array with at most 8 entries.');
   } else {
+    const pageSlugs = new Set();
     spec.pages.forEach((page, pi) => {
       const p = `pages[${pi}]`;
       if (!isPlainObject(page)) { errors.push(`${p} must be an object.`); return; }
       if (!nonEmpty(page.slug)) errors.push(`${p}.slug is required.`);
+      else {
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(page.slug)) {
+          errors.push(`${p}.slug must contain only lowercase letters, numbers, and hyphens.`);
+        }
+        if (pageSlugs.has(page.slug)) errors.push(`${p}.slug "${page.slug}" is duplicated.`);
+        pageSlugs.add(page.slug);
+      }
       if (!nonEmpty(page.title)) errors.push(`${p}.title is required.`);
       if (isString(page.description) && page.description.length > 1200) {
         errors.push(`${p}.description exceeds 1200 characters.`);
       }
-      if (!Array.isArray(page.sections) || page.sections.length === 0) {
-        errors.push(`${p}.sections must be a non-empty array.`);
+      if (!Array.isArray(page.sections) || page.sections.length === 0 || page.sections.length > 20) {
+        errors.push(`${p}.sections must be a non-empty array with at most 20 entries.`);
         return;
       }
       const nonNav = page.sections.filter((s) => s && s.type !== 'nav');
@@ -278,7 +286,8 @@ export function validateSpec(spec) {
         const a = page.sections[si];
         const b = page.sections[si + 1];
         const c = page.sections[si + 2];
-        if (a.type && b.type && c.type && a.variant && b.variant && c.variant &&
+        if (isPlainObject(a) && isPlainObject(b) && isPlainObject(c) &&
+          a.type && b.type && c.type && a.variant && b.variant && c.variant &&
           a.type === b.type && b.type === c.type && a.variant === b.variant && b.variant === c.variant) {
           errors.push(`${p}: sections ${si + 1}, ${si + 2}, ${si + 3} repeat the same type/variant.`);
         }
@@ -289,13 +298,21 @@ export function validateSpec(spec) {
   // --- images ---
   if (!Array.isArray(spec.images)) {
     errors.push('images must be an array.');
+  } else if (spec.images.length > 24) {
+    errors.push('images must contain at most 24 entries.');
   } else {
     const imageIds = new Set();
     spec.images.forEach((image, ii) => {
       const p = `images[${ii}]`;
       if (!isPlainObject(image)) { errors.push(`${p} must be an object.`); return; }
       if (!nonEmpty(image.id)) errors.push(`${p}.id is required.`);
-      else imageIds.add(image.id);
+      else {
+        if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(image.id)) {
+          errors.push(`${p}.id must be a safe filename identifier.`);
+        }
+        if (imageIds.has(image.id)) errors.push(`${p}.id "${image.id}" is duplicated.`);
+        imageIds.add(image.id);
+      }
       if (!nonEmpty(image.slot)) errors.push(`${p}.slot is required.`);
       if (!nonEmpty(image.purpose)) errors.push(`${p}.purpose is required.`);
       if (!nonEmpty(image.query)) errors.push(`${p}.query is required.`);
@@ -391,10 +408,16 @@ export function validateSpec(spec) {
   // --- section-type gating rules ---
   const businessType = (meta && meta.businessType) || '';
   const hasTeamContent = Array.isArray(spec.team) && spec.team.length > 0;
-  const hasPricingSection = spec.pages?.some((page) => page.sections?.some((s) => s.type === 'pricing'));
-  spec.pages?.forEach((page, pi) => {
+  const pages = Array.isArray(spec.pages) ? spec.pages : [];
+  const hasPricingSection = pages.some((page) =>
+    isPlainObject(page) && Array.isArray(page.sections) &&
+    page.sections.some((section) => isPlainObject(section) && section.type === 'pricing'),
+  );
+  pages.forEach((page, pi) => {
+    if (!isPlainObject(page) || !Array.isArray(page.sections)) return;
     const p = `pages[${pi}]`;
     page.sections?.forEach((section, si) => {
+      if (!isPlainObject(section)) return;
       const sp = `${p}.sections[${si}]`;
       if (section.type === 'team' && !hasTeamContent) {
         errors.push(`${sp}: team section requires a non-empty team array.`);
@@ -412,7 +435,8 @@ export function validateSpec(spec) {
   collectBanned(spec, 'spec', errors);
 
   // Hero heading word count (<= 9 words).
-  spec.pages?.forEach((page, pi) => {
+  pages.forEach((page, pi) => {
+    if (!isPlainObject(page) || !Array.isArray(page.sections)) return;
     const hero = page.sections?.find((s) => s && s.type === 'hero');
     if (hero && isPlainObject(hero.content)) {
       for (const [key, value] of Object.entries(hero.content)) {

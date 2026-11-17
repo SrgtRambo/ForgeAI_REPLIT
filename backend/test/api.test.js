@@ -102,6 +102,61 @@ test('POST /api/checkout rejects a short prompt', async () => {
   });
 });
 
+test('POST /api/site/generate requires an authenticated user', async () => {
+  const { db } = fakeDb();
+  const app = createApp({
+    config: { ...config, siteGenerationEnabled: true },
+    db,
+    stripe,
+    jobs: { enqueue() {}, size: 0 },
+    sitePipeline: async () => { throw new Error('Must not run'); },
+  });
+  await withServer(app, async (base) => {
+    const res = await fetch(`${base}/api/site/generate`, { method: 'POST' });
+    assert.equal(res.status, 401);
+  });
+});
+
+test('POST /api/site/generate validates input, calls the builder, and enforces limits', async () => {
+  const { db } = fakeDb();
+  const input = {
+    businessName: 'Summit Plumbing',
+    industry: 'Home services',
+    description: 'A clear website for local plumbing repairs and fixture installation.',
+  };
+  const received = [];
+  const app = createApp({
+    config: {
+      ...config,
+      siteGenerationEnabled: true,
+      siteLimits: { perUserMinute: 1, perUserDay: 3, perIpDay: 5, globalPerDay: 10 },
+    },
+    db,
+    stripe,
+    jobs: { enqueue() {}, size: 0 },
+    sitePipeline: async (value) => {
+      received.push(value);
+      return { id: 'site-1', name: value.businessName, files: { 'index.html': '<!doctype html>' }, qa: { status: 'passed' } };
+    },
+  });
+  await withServer(app, async (base) => {
+    const options = {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok', 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    };
+    const first = await fetch(`${base}/api/site/generate`, options);
+    assert.equal(first.status, 200);
+    assert.equal((await first.json()).qa.status, 'passed');
+
+    const limited = await fetch(`${base}/api/site/generate`, options);
+    assert.equal(limited.status, 429);
+    assert.ok(Number(limited.headers.get('retry-after')) > 0);
+  });
+  assert.equal(received.length, 1);
+  assert.deepEqual(received[0].brandColors, []);
+});
+
 test('POST /api/generate-free queues a free job', async () => {
   const enqueued = [];
   const { db } = fakeDb();

@@ -11,13 +11,24 @@ import { createOpenRouterChat } from './openrouter.js';
 import { OrderError, validateOrder } from './orders.js';
 import { ARCHETYPES } from './archetypes.js';
 import { TIERS } from './pricing.js';
+import { createSitePipeline } from './site/pipeline.js';
+import { createSiteUsageLimiter } from './site/usage-limits.js';
+import { validateSiteRequest } from './site/request.js';
 
 const PURCHASE_FIELDS =
   'id, type, tier, prompt, amount_cents, status, progress, progress_message, project_name, file_count, error, license_key, created_at, updated_at';
 
-export function createApp({ config, db, stripe, jobs }) {
+export function createApp({ config, db, stripe, jobs, sitePipeline = null }) {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', 1);
+  const siteLimiter = createSiteUsageLimiter(config.siteLimits);
+  const freeGenerationLimiter = createSiteUsageLimiter({
+    perUserMinute: 1,
+    perUserDay: 3,
+    perIpDay: 5,
+    globalPerDay: 10,
+  });
 
   app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -80,10 +91,14 @@ export function createApp({ config, db, stripe, jobs }) {
     const header = req.headers.authorization ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
     if (!token) return res.status(401).json({ error: 'Sign in first.' });
-    const { data, error } = await db.auth.getUser(token);
-    if (error || !data?.user) return res.status(401).json({ error: 'Your session expired. Sign in again.' });
-    req.user = data.user;
-    next();
+    try {
+      const { data, error } = await db.auth.getUser(token);
+      if (error || !data?.user) return res.status(401).json({ error: 'Your session expired. Sign in again.' });
+      req.user = data.user;
+      return next();
+    } catch {
+      return res.status(503).json({ error: 'Sign-in service is temporarily unavailable.' });
+    }
   };
 
   const handle = (fn) => async (req, res) => {
@@ -91,13 +106,19 @@ export function createApp({ config, db, stripe, jobs }) {
       await fn(req, res);
     } catch (err) {
       if (err instanceof OrderError) return res.status(err.status).json({ error: err.message });
-      console.error('[api]', err);
+      console.error('[api]', err?.name || 'Error');
       res.status(500).json({ error: 'Something went wrong. Try again.' });
     }
   };
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, payments: Boolean(stripe), freeGeneration: config.allowFreeGeneration, jobs: jobs.size });
+    res.json({
+      ok: true,
+      payments: Boolean(stripe),
+      freeGeneration: config.allowFreeGeneration,
+      siteGeneration: Boolean(config.siteGenerationEnabled && sitePipeline),
+      jobs: jobs.size,
+    });
   });
 
   app.get('/api/catalog', (_req, res) => {
@@ -105,6 +126,46 @@ export function createApp({ config, db, stripe, jobs }) {
       types: Object.entries(ARCHETYPES).map(([id, a]) => ({ id, label: a.label })),
       tiers: Object.entries(TIERS).map(([id, t]) => ({ id, label: t.label, priceCents: t.priceCents, maxFiles: t.maxFiles })),
     });
+  });
+
+  app.post('/api/site/generate', requireUser, async (req, res) => {
+    if (!config.siteGenerationEnabled || !sitePipeline) {
+      return res.status(503).json({ error: 'Website generation is not configured yet.' });
+    }
+
+    let input;
+    try {
+      input = validateSiteRequest(req.body);
+    } catch (error) {
+      return res.status(error.status || 400).json({ error: error.message });
+    }
+
+    const limit = siteLimiter.consume({ userId: req.user.id, ip: req.ip });
+    if (!limit.allowed) {
+      res.setHeader('Retry-After', String(limit.retryAfterSeconds));
+      return res.status(429).json({
+        error: limit.reason === 'daily-cap'
+          ? 'Website generation is temporarily at its daily capacity. Try again tomorrow.'
+          : 'You have reached the website generation limit. Please try again later.',
+      });
+    }
+
+    try {
+      const result = await sitePipeline(input);
+      return res.json(result);
+    } catch (error) {
+      if (error?.status === 429) {
+        return res.status(429).json({ error: error.message });
+      }
+      if (error?.status === 401) {
+        return res.status(503).json({ error: 'The OpenRouter connection needs attention.' });
+      }
+      if (error?.status === 402) {
+        return res.status(503).json({ error: 'OpenRouter has no available credits for website generation.' });
+      }
+      console.error('[site-generation]', error?.name || 'Error');
+      return res.status(502).json({ error: 'The website could not be generated. Try a shorter description.' });
+    }
   });
 
   app.post(
@@ -158,6 +219,11 @@ export function createApp({ config, db, stripe, jobs }) {
     requireUser,
     handle(async (req, res) => {
       if (!config.allowFreeGeneration) return res.status(403).json({ error: 'Free generation is turned off.' });
+      if (jobs.size >= config.maxQueuedJobs) {
+        return res.status(429).json({ error: 'The generation queue is busy. Try again later.' });
+      }
+      const limit = freeGenerationLimiter.consume({ userId: req.user.id, ip: req.ip });
+      if (!limit.allowed) return res.status(429).json({ error: 'You have reached the free generation limit.' });
       const order = validateOrder(req.body);
       const { data, error } = await db
         .from('purchases')
@@ -243,10 +309,20 @@ async function main() {
   const stripe = config.paymentsEnabled ? new Stripe(config.stripeSecretKey) : null;
   const chat = createOpenRouterChat({ apiKey: config.openrouterKey, referer: config.frontendUrl });
   const jobs = createJobRunner({ db, config, chat });
-  const app = createApp({ config, db, stripe, jobs });
+  const sitePipeline = config.siteGenerationEnabled && config.openrouterKey
+    ? createSitePipeline({
+      chat,
+      modelAnalysis: config.models.analysis,
+      modelCopy: config.models.copy,
+    })
+    : null;
+  const app = createApp({ config, db, stripe, jobs, sitePipeline });
   app.listen(config.port, async () => {
     console.log(`Forge AI backend listening on ${config.baseUrl}`);
     if (!stripe) console.log('Payments are off (add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET to turn them on).');
+    if (config.siteGenerationEnabled && !sitePipeline) {
+      console.warn('Website generation is off because OpenRouter is not configured.');
+    }
 
     // Ensure storage bucket exists
     try {

@@ -235,6 +235,30 @@ test('three consecutive sections with same type and variant fails', () => {
   assert.ok(result.errors.some((e) => e.includes('repeat the same type/variant')));
 });
 
+test('null sections return validation errors without crashing', () => {
+  const spec = baseSpec();
+  spec.pages[0].sections.splice(2, 0, null);
+  const result = validateSpec(spec);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.includes('sections[2] must be an object')));
+});
+
+test('duplicate page slugs are rejected', () => {
+  const spec = baseSpec();
+  spec.pages.push({ ...structuredClone(spec.pages[0]), title: 'Second page' });
+  const result = validateSpec(spec);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.includes('slug "index" is duplicated')));
+});
+
+test('duplicate image ids are rejected', () => {
+  const spec = baseSpec();
+  spec.images.push({ ...spec.images[0], slot: 'second slot' });
+  const result = validateSpec(spec);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.includes('id "img-1" is duplicated')));
+});
+
 test('valid restaurant spec with menu section passes', () => {
   const spec = baseSpec();
   spec.meta.businessType = 'restaurant';

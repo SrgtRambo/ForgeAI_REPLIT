@@ -39,7 +39,7 @@ function AccountPage() {
   const saveProfile = useMutation({
     mutationFn: async () => {
       const values = { display_name: displayName.trim().slice(0, 120), company_name: company.trim().slice(0, 160) };
-      const { error } = await supabase.from("profiles").upsert({ id: user.id, ...values });
+      const { error } = await supabase.auth.updateUser({ data: values });
       if (error) throw error;
     },
     onSuccess: async () => {

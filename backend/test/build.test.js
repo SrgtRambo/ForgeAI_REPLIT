@@ -47,6 +47,7 @@ for (const file of FIXTURE_FILES) {
     const imgSrcs = [...html.matchAll(/<img\b[^>]*src="([^"]+)"/gi)].map((m) => m[1]);
     for (const src of imgSrcs) {
       assert.ok(files[src], `img src ${src} exists in files`);
+      if (src.endsWith('.svg')) assert.match(files[src], /<svg\b/);
     }
 
     // Every internal href exists.
@@ -81,3 +82,10 @@ for (const file of FIXTURE_FILES) {
     }
   });
 }
+
+test('buildSite refuses duplicate page slugs instead of overwriting a page', async () => {
+  const raw = fs.readFileSync(path.join(FIXTURE_DIR, 'plumber.json'), 'utf8');
+  const spec = buildSpecFromAnalysis(JSON.parse(raw));
+  spec.pages.push({ ...structuredClone(spec.pages[0]), title: 'Duplicate page' });
+  await assert.rejects(() => buildSite(spec, spec.images), /slug "index" is duplicated/);
+});

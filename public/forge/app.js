@@ -5,9 +5,10 @@
   "use strict";
   const STORE = "forge-ai-projects-v1";
   const $ = (id) => document.getElementById(id);
-  const views = ["overview", "discovery", "architect", "generator", "testing", "projects", "settings"];
+  const views = ["overview", "discovery", "architect", "generator", "testing", "website", "projects", "settings"];
   let projects = readProjects();
   let current = null;
+  let currentSite = null;
   let currentFiles = null;
   let currentFolder = null;
   let lastTestResults = [];
@@ -329,8 +330,154 @@
       host.appendChild(row);
     });
   }
-  function openSavedProject(id) { const project = projects.find((item) => item.id === id); if (!project) return; newProjectDraft = false; current = project; currentFiles = project.files || null; currentFolder = null; lastTestResults = project.testResults || []; showCurrentProject(); if (currentFiles) { installFiles(currentFiles, true); if (project.testResults) showTests(project.testResults); } else { $("generatorProject").textContent = project.name; } navigate("generator"); showToast("Opened " + project.name + " from your projects."); }
+  function encodeSvgDataUrl(svg) {
+    const bytes = new TextEncoder().encode(svg);
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return "data:image/svg+xml;base64," + btoa(binary);
+  }
+  function websitePreviewDocument(files) {
+    let html = files["index.html"] || "";
+    const css = files["css/site.css"];
+    if (css) {
+      const safeCss = css.replace(/<\/style/gi, "<\\/style");
+      const style = "<style>" + safeCss + "</style>";
+      const link = /<link\b(?=[^>]*\brel=["']stylesheet["'])(?=[^>]*\bhref=["'](?:\.\/)?css\/site\.css["'])[^>]*>/gi;
+      const embedded = html.replace(link, style);
+      html = embedded !== html ? embedded : html.replace("</head>", style + "</head>");
+    }
+    for (const [assetPath, content] of Object.entries(files)) {
+      if (!assetPath.startsWith("assets/images/") || !assetPath.endsWith(".svg") || typeof content !== "string") continue;
+      const dataUrl = encodeSvgDataUrl(content);
+      html = html.split(assetPath).join(dataUrl);
+    }
+    const previewPolicy = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; connect-src \'none\'; form-action \'none\'; base-uri \'none\'">';
+    html = html.replace("</head>", previewPolicy + "</head>");
+    return html;
+  }
+  function renderSiteQa(project) {
+    const details = $("siteQaDetails"), host = $("siteQaResults");
+    host.replaceChildren();
+    const qa = project.qa || { status: "not-run", errors: ["Automated checks have not run."] };
+    const summary = document.createElement("div");
+    summary.className = "notice " + (qa.status === "passed" ? "success" : qa.status === "skipped" ? "" : "error");
+    summary.textContent = "Status: " + (qa.status || "not run");
+    host.appendChild(summary);
+    const messages = [...(qa.errors || [])];
+    (qa.pages || []).forEach((page) => {
+      if (page.overflow) messages.push((page.page || "Page") + ": horizontal overflow detected.");
+      (page.errors || []).forEach((message) => messages.push((page.page || "Page") + ": " + message));
+      (page.accessibilityIssues || []).forEach((message) => messages.push((page.page || "Page") + ": accessibility — " + message));
+      (page.bannedText || []).forEach((message) => messages.push((page.page || "Page") + ": " + message));
+    });
+    if (!messages.length) messages.push("No blocking issues were found by the configured checks.");
+    messages.forEach((message) => {
+      const row = document.createElement("div");
+      row.className = "test-row";
+      row.textContent = message;
+      host.appendChild(row);
+    });
+    details.classList.remove("hidden");
+  }
+  function showWebsiteProject(project) {
+    currentSite = project;
+    $("siteBusinessName").value = project.requirements?.businessName || project.name || "";
+    $("siteIndustry").value = project.requirements?.industry || project.industry || "";
+    $("siteLocation").value = project.requirements?.location || "";
+    const files = project.files || {};
+    $("sitePreviewStatus").textContent = project.name + " · " + (project.qa?.status || "checks not run");
+    $("sitePreview").srcdoc = websitePreviewDocument(files);
+    $("sitePreview").classList.remove("hidden");
+    $("sitePreviewEmpty").classList.add("hidden");
+    $("downloadWebsiteZip").disabled = !files["index.html"];
+    renderSiteQa(project);
+  }
+  function openSavedProject(id) { const project = projects.find((item) => item.id === id); if (!project) return; if (project.kind === "website") { showWebsiteProject(project); navigate("website"); showToast("Opened " + project.name + "."); return; } newProjectDraft = false; current = project; currentFiles = project.files || null; currentFolder = null; lastTestResults = project.testResults || []; showCurrentProject(); if (currentFiles) { installFiles(currentFiles, true); if (project.testResults) showTests(project.testResults); } else { $("generatorProject").textContent = project.name; } navigate("generator"); showToast("Opened " + project.name + " from your projects."); }
   function addOrUpdateCurrent() { const index = projects.findIndex((project) => project.id === current.id); if (index < 0) projects.unshift(current); else projects[index] = current; return persist(); }
+
+  $("siteBuilderForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    clearNotice("siteBuilderNotice");
+    const button = $("generateWebsite");
+    button.disabled = true;
+    button.textContent = "Generating and checking…";
+    $("sitePreviewStatus").textContent = "Building the pages and running automated checks. This can take a couple of minutes.";
+    const description = $("siteDescription").value.trim();
+    const brandColors = $("siteBrandColors").value.split(",").map((color) => color.trim()).filter(Boolean);
+    try {
+      const token = await window.ForgeCloud?.getAccessToken();
+      if (!token) throw new Error("Your sign-in session expired. Sign in again and retry.");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 240_000);
+      let response;
+      try {
+        response = await fetch("/api/site/generate", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessName: $("siteBusinessName").value.trim(),
+            industry: $("siteIndustry").value.trim(),
+            location: $("siteLocation").value.trim(),
+            description,
+            brandColors,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Website generation failed. Please try again.");
+      if (!result.files || typeof result.files["index.html"] !== "string") throw new Error("The generated website did not include a home page.");
+
+      const now = new Date().toISOString();
+      const project = {
+        id: result.id,
+        kind: "website",
+        name: result.name || $("siteBusinessName").value.trim(),
+        industry: result.industry || $("siteIndustry").value.trim() || "Website",
+        createdAt: now,
+        updatedAt: now,
+        stage: result.qa?.status === "passed" ? "Website generated and checked" : "Website generated — review needed",
+        approved: true,
+        requirements: {
+          businessName: $("siteBusinessName").value.trim(),
+          industry: $("siteIndustry").value.trim(),
+          location: $("siteLocation").value.trim(),
+        },
+        files: result.files,
+        fileCount: result.fileCount || Object.keys(result.files).length,
+        version: 1,
+        qa: result.qa || { status: "skipped", errors: ["Automated browser checks were unavailable."] },
+        copyFixes: result.copyFixes || 0,
+        unknowns: result.unknowns || [],
+      };
+      projects.unshift(project);
+      currentSite = project;
+      showWebsiteProject(project);
+      persist();
+      await window.ForgeCloud.flush();
+      const qaText = project.qa.status === "passed" ? " Automated checks passed." : " Review the preview and automated-check notes before publishing.";
+      showNotice("siteBuilderNotice", project.name + " was generated and saved to your account." + qaText, false);
+      showToast("Website saved to your account.");
+    } catch (error) {
+      const message = error.name === "AbortError" ? "Generation took too long. Try a shorter description." : error.message || String(error);
+      showNotice("siteBuilderNotice", message, true);
+      $("sitePreviewStatus").textContent = "Generation did not complete.";
+    } finally {
+      button.disabled = false;
+      button.textContent = "Generate website";
+    }
+  });
+  $("downloadWebsiteZip").addEventListener("click", () => {
+    if (!currentSite?.files) return;
+    try {
+      const result = window.ForgeGenerator.downloadProjectZip(currentSite.files, currentSite.name);
+      showNotice("siteBuilderNotice", "Downloaded " + result.filename + " with " + currentSite.fileCount + " website files.", false);
+    } catch (error) {
+      showNotice("siteBuilderNotice", "Could not create the ZIP: " + (error.message || String(error)), true);
+    }
+  });
 
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => navigate(button.dataset.view)));
   document.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.go === "discovery" && current) newProjectDraft = false; navigate(button.dataset.go); }));
@@ -830,6 +977,6 @@
 
   initializeAIFixReview();
   // Restore the most recently updated project as the active workspace on reload.
-  if (projects.length) { const latest = projects.slice().sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))[0]; current = latest; currentFiles = latest.files || null; showCurrentProject(); if (currentFiles) installFiles(currentFiles, true); }
+  if (projects.length) { const latest = projects.slice().sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))[0]; if (latest.kind === "website") openSavedProject(latest.id); else { current = latest; currentFiles = latest.files || null; showCurrentProject(); if (currentFiles) installFiles(currentFiles, true); } }
   renderProjects(); updateOverview(); updateApprovalControls();
 })();

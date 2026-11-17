@@ -6,6 +6,7 @@
 <button class="nav" data-view="architect"><span>⌘</span>Project Architect</button>
 <button class="nav" data-view="generator"><span>▧</span>Software Generator</button>
 <button class="nav" data-view="testing"><span>✓</span>Testing Agent</button>
+<button class="nav" data-view="website"><span>⌂</span>Website Builder</button>
 <button class="nav" data-view="projects"><span>▤</span>Software Projects</button>
 <div class="section-label">SYSTEM</div><button class="nav" data-view="settings"><span>⚙</span>Settings</button>
 <div class="side-bottom">CLOUD WORKSPACE<br>Private to your account · AI-powered</div></aside>
@@ -48,6 +49,24 @@
 </section>
 
 <section class="view" id="view-testing"><div class="view-head"><div><h1>Testing Agent</h1><p>Run honest local checks against the generated files and their references. The app preview stays beside the generator workspace.</p></div><span id="testStatus" class="status">NO TESTS RUN</span></div><div class="grid"><article class="card"><h2>Project checks</h2><p class="card-desc">Checks file presence, HTML structure and references, JavaScript parseability, and core workflow markers.</p><div class="btn-row"><button id="runTests" class="btn primary" disabled>Run project tests</button><button id="showPreview" class="btn" disabled>View app in generator</button></div><div id="testResults" class="test-list" style="margin-top:14px"><div class="empty">Generate or open a project to run checks.</div></div></article><article class="card"><h2>Test summary</h2><div class="stats"><article class="stat"><div class="stat-label">COMPLETED</div><div class="stat-value" id="testsCompleted">0</div></article><article class="stat"><div class="stat-label">PASSED</div><div class="stat-value" id="testsPassed">0</div></article><article class="stat"><div class="stat-label">FAILED</div><div class="stat-value" id="testsFailed">0</div></article></div><div id="testAdvice" class="notice">Tests have not been run.</div></article></div></section>
+
+<section class="view" id="view-website">
+<div class="view-head"><div><h1>Website Builder</h1><p>Describe a business and Forge will generate a website, preview it, check it, and save it to your account.</p></div><span class="status">OPENROUTER · AI GENERATION</span></div>
+<div class="site-builder-grid">
+<form id="siteBuilderForm" class="card site-builder-form">
+<h2>Business details</h2>
+<p class="card-desc">This sends your description to OpenRouter. Do not include passwords, API keys, or private customer information. Limits: one build per minute, three per day per account.</p>
+<div class="field"><label for="siteBusinessName">Business name *</label><input class="input" id="siteBusinessName" name="businessName" required minlength="2" maxlength="100" placeholder="Summit Plumbing"></div>
+<div class="field-grid"><div class="field"><label for="siteIndustry">Industry</label><input class="input" id="siteIndustry" name="industry" maxlength="80" placeholder="Home services"></div><div class="field"><label for="siteLocation">Location</label><input class="input" id="siteLocation" name="location" maxlength="100" placeholder="Denver, Colorado"></div></div>
+<div class="field"><label for="siteDescription">What does the business do? *</label><textarea id="siteDescription" name="description" required minlength="30" maxlength="3000" placeholder="Describe the services, customers, tone, and what visitors should do. Do not invent prices or credentials."></textarea></div>
+<div class="field"><label for="siteBrandColors">Brand colors (optional)</label><input class="input" id="siteBrandColors" name="brandColors" maxlength="48" placeholder="#164e63, #f5c36b"><span class="tiny muted">Enter up to six hex colors separated by commas.</span></div>
+<label class="check"><input type="checkbox" id="siteGenerationConsent" required><span>I understand this brief will be sent to OpenRouter for website generation.</span></label>
+<div class="btn-row"><button type="submit" class="btn primary" id="generateWebsite">Generate website</button><button type="button" class="btn" id="downloadWebsiteZip" disabled>Download ZIP</button></div>
+<div id="siteBuilderNotice" class="notice hidden" role="status" aria-live="polite"></div>
+</form>
+<article class="card site-builder-preview"><div class="preview-toolbar"><div><h2>Website preview</h2><p id="sitePreviewStatus" class="card-desc">Your generated site will appear here.</p></div></div><div id="sitePreviewEmpty" class="preview-empty"><div><strong>No website yet</strong>Complete the business details and generate a preview.</div></div><iframe id="sitePreview" class="preview-frame hidden" title="Generated website preview" sandbox="allow-scripts allow-forms"></iframe><details id="siteQaDetails" class="site-qa hidden"><summary>Automated checks</summary><div id="siteQaResults" class="test-list"></div></details></article>
+</div>
+</section>
 
 <section class="view" id="view-projects"><div class="view-head"><div><h1>Software Projects</h1><p>Return to a project, review its progress, or open one from disk.</p></div><button class="btn primary" data-new-project>＋ New project</button></div><article class="card"><h2>Ready-to-test sample projects</h2><p class="card-desc">Add four fictional projects with Discovery answers, reviewed starter architectures, generated offline apps, and saved source-check results. Samples are saved to your account and don't use AI.</p><div class="btn-row"><button class="btn" id="loadSampleProjects">Add 4 sample projects</button><span class="tiny muted" id="sampleProjectStatus" role="status">Not added yet</span></div></article><div id="projectList" class="project-list" style="margin-top:14px"><div class="empty">No saved projects yet.</div></div><div class="card" style="margin-top:14px"><h2>Open a project from disk</h2><p class="card-desc">Choose a Forge project folder or open a project ZIP. Opened projects are saved to your account; download an updated ZIP to keep a local copy.</p><div class="btn-row"><button class="btn" id="openProjectFolderAlt">Choose project folder…</button><button class="btn" id="openProjectZipAlt">Open project ZIP…</button></div></div></section>
 
