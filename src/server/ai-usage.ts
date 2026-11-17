@@ -1,11 +1,12 @@
 import { getSqlClient } from "./db";
 
 export async function countAiRequests(userId: string, since: Date) {
+  const sinceTimestamp = since.toISOString();
   const [row] = await getSqlClient()`
     select count(*)::int as count
     from ai_requests
     where user_id = ${userId}
-      and created_at > ${since}
+      and created_at > ${sinceTimestamp}::timestamptz
   `;
   return Number(row?.["count"] ?? 0);
 }

@@ -12,6 +12,7 @@
 | Public backend catalog through the app proxy | HTTP 200 |
 | Unauthenticated profile/project, website-generation, and Forge AI routes | HTTP 401 |
 | Replit PostgreSQL schema | `profiles`, `forge_projects`, `ai_requests`, and `purchases` exist |
+| Forge AI usage-count query with a timestamp | Passed against Replit PostgreSQL |
 
 The database started empty, so there were no existing account or project rows to migrate. Customers will need to create Forge accounts again.
 
