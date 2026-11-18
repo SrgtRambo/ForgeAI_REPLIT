@@ -35,17 +35,21 @@ outputType = "webview"
 name = "Start backend"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PATH=/nix/store/3kgvidr44ycfh6swb9n6dgqsb18sllph-nodejs-24.22.1/bin:$PATH npm --prefix backend run dev"
-waitForPort = 3001
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PATH=/nix/store/8f69wpxlxyra2vcxplbpkdnlqhnwq7k9-nodejs-24.22.3-wrapped/bin:$PATH npm --prefix backend run dev"
+waitForPort = 3001
 
 [[ports]]
 localPort = 3001
 externalPort = 3001
+
+[[ports]]
+localPort = 3002
+externalPort = 3002
 
 [[ports]]
 localPort = 5000
@@ -54,8 +58,14 @@ externalPort = 80
 [[ports]]
 localPort = 5001
 externalPort = 3000
+exposeLocalhost = true
 
 [userenv]
 
 [userenv.shared]
 ALLOW_SITE_GENERATION = "true"
+
+[deployment]
+deploymentTarget = "vm"
+run = ["bash", "-lc", "NODE_BIN=/nix/store/8f69wpxlxyra2vcxplbpkdnlqhnwq7k9-nodejs-24.22.3-wrapped/bin; export PATH=\"$NODE_BIN:$PATH\"; PORT=3001 node backend/src/server.js & BACKEND_PID=$!; trap 'kill \"$BACKEND_PID\" 2>/dev/null || true' EXIT; HOST=0.0.0.0 PORT=5000 node .output/server/index.mjs"]
+build = ["bun", "run", "build"]
